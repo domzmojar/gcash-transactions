@@ -440,9 +440,102 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 .intro-btn-prev{font-size:14px;font-weight:600;color:#6B7280;background:#F3F4F6;border:none;border-radius:14px;padding:13px 18px;cursor:pointer;font-family:var(--font);white-space:nowrap;transition:opacity 0.15s}
 .intro-btn-prev:active{opacity:0.75}
 @keyframes intro-fade-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+/* ── PWA INSTALL BANNER ── */
+@keyframes slideUpBanner{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.pwa-banner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:11000;
+  padding:14px 16px 28px;background:#fff;border-top:1px solid var(--border);
+  box-shadow:0 -4px 24px rgba(0,0,0,0.13)}
+.pwa-banner.show{display:block;animation:slideUpBanner 0.35s ease forwards}
 </style>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CashHub PH">
+<meta name="description" content="GCash merchant transaction recorder with auto-scan">
+<script>
+// ── PWA: icon generator + manifest injector (runs before body) ──────────
+function _makePwaIcon(sz){
+  var c=document.createElement('canvas');c.width=c.height=sz;
+  var x=c.getContext('2d'),r=sz*0.18;
+  x.beginPath();x.moveTo(r,0);x.lineTo(sz-r,0);x.quadraticCurveTo(sz,0,sz,r);
+  x.lineTo(sz,sz-r);x.quadraticCurveTo(sz,sz,sz-r,sz);
+  x.lineTo(r,sz);x.quadraticCurveTo(0,sz,0,sz-r);
+  x.lineTo(0,r);x.quadraticCurveTo(0,0,r,0);x.closePath();
+  var g=x.createLinearGradient(0,0,sz,sz);
+  g.addColorStop(0,'#FF6B00');g.addColorStop(1,'#FF9640');
+  x.fillStyle=g;x.fill();
+  x.beginPath();x.arc(sz*.5,sz*.44,sz*.28,0,Math.PI*2);
+  x.fillStyle='rgba(255,255,255,0.18)';x.fill();
+  x.fillStyle='#fff';
+  x.font='bold '+Math.round(sz*.38)+'px -apple-system,sans-serif';
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillText('₱',sz*.5,sz*.44);
+  x.font='bold '+Math.round(sz*.1)+'px -apple-system,sans-serif';
+  x.fillStyle='rgba(255,255,255,0.9)';
+  x.fillText('CashHub PH',sz*.5,sz*.78);
+  return c.toDataURL('image/png');
+}
+function _injectManifest(){
+  var i192=_makePwaIcon(192),i512=_makePwaIcon(512);
+  window._pwaIcon=i192;
+  var mf={name:'CashHub PH',short_name:'CashHub',
+    description:'GCash merchant transaction recorder',
+    start_url:'./',display:'standalone',orientation:'portrait',
+    background_color:'#FF6B00',theme_color:'#FF6B00',
+    icons:[{src:i192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
+           {src:i512,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
+  var l=document.createElement('link');l.rel='manifest';
+  l.href=URL.createObjectURL(new Blob([JSON.stringify(mf)],{type:'application/json'}));
+  document.head.appendChild(l);
+  var al=document.createElement('link');al.rel='apple-touch-icon';al.href=i192;
+  document.head.appendChild(al);
+}
+function _registerSW(){
+  if(!('serviceWorker' in navigator))return;
+  var t=document.getElementById('cashhub-sw');
+  if(!t){console.warn('[PWA] SW source tag missing');return;}
+  try{
+    var blob=new Blob([t.textContent],{type:'text/javascript'});
+    var url=URL.createObjectURL(blob);
+    navigator.serviceWorker.register(url)
+      .then(function(r){console.log('[PWA] SW registered');URL.revokeObjectURL(url);})
+      .catch(function(e){console.info('[PWA] SW skipped:',e.message);});
+  }catch(e){console.info('[PWA] SW error:',e.message);}
+}
+function _backTrap(){
+  if(!window.history||!window.history.pushState)return;
+  history.pushState({ch:1},'','');
+  window.addEventListener('popstate',function(){
+    history.pushState({ch:1},'','');
+    var a=document.querySelector('.screen.active');
+    if(a&&a.id!=='screen-dashboard'&&typeof showTab==='function')showTab('dashboard');
+  });
+}
+document.addEventListener('DOMContentLoaded',function(){
+  _injectManifest();_registerSW();_backTrap();
+});
+</script>
 </head>
 <body>
+<!-- ── PWA INSTALL BANNER ── -->
+<div id="pwa-banner" class="pwa-banner">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    <canvas id="pwa-icon-canvas" width="48" height="48" style="border-radius:11px;flex-shrink:0"></canvas>
+    <div style="flex:1">
+      <div style="font-size:14px;font-weight:700;color:var(--text)">Install CashHub PH</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Add to home screen — full-screen, no browser bar</div>
+    </div>
+    <button onclick="dismissPwaBanner()" style="background:none;border:none;padding:6px;cursor:pointer;color:var(--text3)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <button onclick="dismissPwaBanner()" style="background:var(--bg3);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font)">Not now</button>
+    <button onclick="triggerPwaInstall()" style="background:#FF6B00;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:var(--font)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" style="margin-right:4px;vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Install App
+    </button>
+  </div>
+</div>
 <div class="app" id="app">
 <!-- Walkthrough overlay -->
 <!-- ═══════════ INTRO SLIDER ═══════════ -->
@@ -1477,6 +1570,24 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
     </a>
   </div>
 
+  <div class="section-label">App Installation</div>
+  <div class="card" style="padding:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <canvas id="pwa-settings-icon" width="44" height="44" style="border-radius:10px;flex-shrink:0"></canvas>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">CashHub PH</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px" id="pwa-install-status">Checking status...</div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-sm" id="pwa-settings-install-btn" onclick="triggerPwaInstall()" style="width:100%;margin-bottom:8px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Install as App
+    </button>
+    <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
+      Install to home screen for full-screen experience,<br>offline support, and no browser back button issue.
+    </div>
+  </div>
+
   <div style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0 4px">
     CashHub PH · Smart Receipt Scanning + Manual Entry · Data stored on device only
   </div>
@@ -1784,7 +1895,7 @@ function showTab(id){
   if(id==='dashboard')renderDashboard();
   if(id==='records')renderRecords();
   if(id==='reports')renderReports();
-  if(id==='settings')updateDataSummary();
+  if(id==='settings'){updateDataSummary();renderPwaSettingsCard();_drawSettingsPwaIcon();}
   if(id==='scan'){
     // Only reset to source step if no mid-flow step is active
     const extracted=document.getElementById('scan-step-extracted');
@@ -4609,5 +4720,144 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 </script>
 
+
+<!-- SW source: type="text/plain" so browser ignores it as JS; read via textContent -->
+<script id="cashhub-sw" type="text/plain">
+var CACHE='cashhub-ph-v1';
+self.addEventListener('install',function(e){
+  e.waitUntil(
+    caches.open(CACHE).then(function(c){
+      return c.addAll([location.href]).catch(function(){});
+    }).then(function(){return self.skipWaiting();})
+  );
+});
+self.addEventListener('activate',function(e){
+  e.waitUntil(
+    caches.keys().then(function(ks){
+      return Promise.all(ks.filter(function(k){return k!==CACHE;}).map(function(k){return caches.delete(k);}));
+    }).then(function(){return self.clients.claim();})
+  );
+});
+self.addEventListener('fetch',function(e){
+  if(e.request.method!=='GET')return;
+  if(e.request.mode==='navigate'){
+    e.respondWith(fetch(e.request).then(function(r){
+      var cl=r.clone();
+      caches.open(CACHE).then(function(c){c.put(e.request,cl);});
+      return r;
+    }).catch(function(){
+      return caches.match(e.request).then(function(r){
+        return r||new Response('You are offline. Please reconnect.',{status:503,headers:{'Content-Type':'text/plain'}});
+      });
+    }));
+  }else{
+    e.respondWith(caches.match(e.request).then(function(r){
+      return r||fetch(e.request).catch(function(){return new Response('',{status:408});});
+    }));
+  }
+});
+</script>
+
+<script>
+// ── PWA INSTALL PROMPT ────────────────────────────────────────────────────
+var _pwaEvt = null;
+
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  _pwaEvt = e;
+  if(!localStorage.getItem('cashhub_pwa_ok')){
+    setTimeout(showPwaBanner, 5000); // wait 5s so it doesn't interrupt onboarding
+  }
+});
+
+window.addEventListener('appinstalled', function(){
+  hidePwaBanner();
+  localStorage.setItem('cashhub_pwa_ok','1');
+  if(typeof showToast==='function') showToast('CashHub PH installed! Open from your home screen 🎉');
+});
+
+function showPwaBanner(){
+  // Don't show if intro slider or trial overlay is still open
+  var intro = document.getElementById('intro-overlay');
+  var trial = document.getElementById('trial-overlay');
+  if((intro&&intro.classList.contains('show'))||(trial&&trial.style.display==='flex')){
+    setTimeout(showPwaBanner, 3000); return;
+  }
+  var b = document.getElementById('pwa-banner');
+  if(!b) return;
+  // Draw icon into canvas
+  if(window._pwaIcon){
+    var img=new Image();
+    img.onload=function(){
+      var cv=document.getElementById('pwa-icon-canvas');
+      if(cv)cv.getContext('2d').drawImage(img,0,0,48,48);
+    };
+    img.src=window._pwaIcon;
+  }
+  b.classList.add('show');
+}
+
+function hidePwaBanner(){
+  var b=document.getElementById('pwa-banner');
+  if(b)b.classList.remove('show');
+}
+
+function dismissPwaBanner(){
+  hidePwaBanner();
+  localStorage.setItem('cashhub_pwa_ok','1');
+}
+
+function _drawSettingsPwaIcon(){
+  if(!window._pwaIcon)return;
+  var cv=document.getElementById('pwa-settings-icon');if(!cv)return;
+  var img=new Image();img.onload=function(){cv.getContext('2d').drawImage(img,0,0,44,44);};img.src=window._pwaIcon;
+}
+async function triggerPwaInstall(){
+  if(_pwaEvt){
+    _pwaEvt.prompt();
+    var res=await _pwaEvt.userChoice;
+    if(res.outcome==='accepted') dismissPwaBanner();
+    _pwaEvt=null;
+  } else {
+    // Manual instructions fallback (iOS Safari or unsupported browser)
+    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    if(ios){
+      alert('To install on iPhone/iPad:
+
+1. Tap the Share button (box with arrow) at the bottom
+2. Tap "Add to Home Screen"
+3. Tap "Add" — done!');
+    } else {
+      alert('To install:
+
+1. Tap the 3-dot menu (⋮) in Chrome
+2. Tap "Add to Home screen" or "Install app"
+3. Tap "Install" — done!');
+    }
+    dismissPwaBanner();
+  }
+}
+
+// Settings: render PWA install status when settings tab opens
+function renderPwaSettingsCard(){
+  var statusEl=document.getElementById('pwa-install-status');
+  var installBtn=document.getElementById('pwa-settings-install-btn');
+  if(!statusEl||!installBtn)return;
+  var isInstalled=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+  if(isInstalled){
+    statusEl.textContent='✓ Installed — running as full-screen app';
+    installBtn.textContent='Already Installed';
+    installBtn.disabled=true;installBtn.style.opacity='0.5';
+  }else if(_pwaEvt){
+    statusEl.textContent='Ready to install on this device';
+    installBtn.disabled=false;installBtn.style.opacity='1';
+    installBtn.onclick=triggerPwaInstall;
+  }else{
+    statusEl.textContent='Use browser menu → "Add to Home Screen"';
+    installBtn.textContent='How to Install';
+    installBtn.onclick=function(){triggerPwaInstall();};
+  }
+}
+</script>
 </body>
 </html>
