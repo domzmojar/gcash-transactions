@@ -453,40 +453,90 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 <meta name="description" content="GCash merchant transaction recorder with auto-scan">
 <script>
 // ── PWA: icon generator + manifest injector (runs before body) ──────────
-function _makePwaIcon(sz){
+function _makePwaIcon(sz, maskable){
+  // maskable=true  → full bleed background, content inside 60% safe zone (no Chrome badge)
+  // maskable=false → rounded rect icon for 'any' purpose (square contexts)
   var c=document.createElement('canvas');c.width=c.height=sz;
-  var x=c.getContext('2d'),r=sz*0.18;
-  x.beginPath();x.moveTo(r,0);x.lineTo(sz-r,0);x.quadraticCurveTo(sz,0,sz,r);
-  x.lineTo(sz,sz-r);x.quadraticCurveTo(sz,sz,sz-r,sz);
-  x.lineTo(r,sz);x.quadraticCurveTo(0,sz,0,sz-r);
-  x.lineTo(0,r);x.quadraticCurveTo(0,0,r,0);x.closePath();
-  var g=x.createLinearGradient(0,0,sz,sz);
-  g.addColorStop(0,'#FF6B00');g.addColorStop(1,'#FF9640');
-  x.fillStyle=g;x.fill();
-  x.beginPath();x.arc(sz*.5,sz*.44,sz*.28,0,Math.PI*2);
-  x.fillStyle='rgba(255,255,255,0.18)';x.fill();
-  x.fillStyle='#fff';
-  x.font='bold '+Math.round(sz*.38)+'px -apple-system,sans-serif';
-  x.textAlign='center';x.textBaseline='middle';
-  x.fillText('₱',sz*.5,sz*.44);
-  x.font='bold '+Math.round(sz*.1)+'px -apple-system,sans-serif';
-  x.fillStyle='rgba(255,255,255,0.9)';
-  x.fillText('CashHub PH',sz*.5,sz*.78);
+  var x=c.getContext('2d');
+
+  if(maskable){
+    // MASKABLE: fill entire canvas edge-to-edge with the gradient
+    // OS will clip to circle/squircle — no content outside safe zone
+    var g=x.createLinearGradient(0,0,sz,sz);
+    g.addColorStop(0,'#FF6B00');g.addColorStop(1,'#FF9640');
+    x.fillStyle=g;x.fillRect(0,0,sz,sz);
+
+    // Safe zone = center 60% of canvas (inner circle radius = 30% of sz)
+    // Keep ALL content inside this circle so nothing gets clipped
+    var safe=sz*0.30; // radius of safe zone
+    var cx=sz*0.5, cy=sz*0.5;
+
+    // Subtle inner glow circle
+    x.beginPath();x.arc(cx,cy,safe*0.92,0,Math.PI*2);
+    x.fillStyle='rgba(255,255,255,0.13)';x.fill();
+
+    // ₱ symbol — sized to fit well inside safe zone
+    x.fillStyle='#fff';
+    x.font='bold '+Math.round(sz*0.28)+'px -apple-system,sans-serif';
+    x.textAlign='center';x.textBaseline='middle';
+    x.fillText('₱',cx,cy-sz*0.03);
+
+    // "CashHub" wordmark below peso sign, still inside safe zone
+    x.font='bold '+Math.round(sz*0.075)+'px -apple-system,sans-serif';
+    x.fillStyle='rgba(255,255,255,0.88)';
+    x.fillText('CashHub',cx,cy+sz*0.17);
+
+  } else {
+    // ANY: rounded rect with visible background shape (for square icon contexts)
+    var r=sz*0.22;
+    x.beginPath();x.moveTo(r,0);x.lineTo(sz-r,0);x.quadraticCurveTo(sz,0,sz,r);
+    x.lineTo(sz,sz-r);x.quadraticCurveTo(sz,sz,sz-r,sz);
+    x.lineTo(r,sz);x.quadraticCurveTo(0,sz,0,sz-r);
+    x.lineTo(0,r);x.quadraticCurveTo(0,0,r,0);x.closePath();
+    var g2=x.createLinearGradient(0,0,sz,sz);
+    g2.addColorStop(0,'#FF6B00');g2.addColorStop(1,'#FF9640');
+    x.fillStyle=g2;x.fill();
+
+    x.beginPath();x.arc(sz*.5,sz*.45,sz*.26,0,Math.PI*2);
+    x.fillStyle='rgba(255,255,255,0.15)';x.fill();
+
+    x.fillStyle='#fff';
+    x.font='bold '+Math.round(sz*.32)+'px -apple-system,sans-serif';
+    x.textAlign='center';x.textBaseline='middle';
+    x.fillText('₱',sz*.5,sz*.43);
+
+    x.font='bold '+Math.round(sz*.09)+'px -apple-system,sans-serif';
+    x.fillStyle='rgba(255,255,255,0.9)';
+    x.fillText('CashHub PH',sz*.5,sz*.75);
+  }
   return c.toDataURL('image/png');
 }
 function _injectManifest(){
-  var i192=_makePwaIcon(192),i512=_makePwaIcon(512);
-  window._pwaIcon=i192;
+  // Generate TWO separate icons:
+  // 'any'      = rounded rect, used in square/adaptive contexts
+  // 'maskable' = full-bleed, content in safe zone, used for circle/squircle home screen icons
+  // Chrome requires them SEPARATE — combined 'any maskable' causes the Chrome badge fallback
+  var iAny192  = _makePwaIcon(192, false);
+  var iMask192 = _makePwaIcon(192, true);
+  var iAny512  = _makePwaIcon(512, false);
+  var iMask512 = _makePwaIcon(512, true);
+  window._pwaIcon = iAny192; // used for install banner preview
+
   var mf={name:'CashHub PH',short_name:'CashHub',
     description:'GCash merchant transaction recorder',
     start_url:'./',display:'standalone',orientation:'portrait',
     background_color:'#FF6B00',theme_color:'#FF6B00',
-    icons:[{src:i192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-           {src:i512,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
+    icons:[
+      {src:iAny192,  sizes:'192x192', type:'image/png', purpose:'any'},
+      {src:iMask192, sizes:'192x192', type:'image/png', purpose:'maskable'},
+      {src:iAny512,  sizes:'512x512', type:'image/png', purpose:'any'},
+      {src:iMask512, sizes:'512x512', type:'image/png', purpose:'maskable'}
+    ]};
   var l=document.createElement('link');l.rel='manifest';
   l.href=URL.createObjectURL(new Blob([JSON.stringify(mf)],{type:'application/json'}));
   document.head.appendChild(l);
-  var al=document.createElement('link');al.rel='apple-touch-icon';al.href=i192;
+  // Apple touch icon — use the 'any' rounded rect version (iOS clips to its own shape)
+  var al=document.createElement('link');al.rel='apple-touch-icon';al.href=iAny192;
   document.head.appendChild(al);
 }
 function _registerSW(){
