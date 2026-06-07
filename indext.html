@@ -4,161 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="CashHub PH">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#FF6B00">
-<meta name="description" content="GCash merchant transaction recorder with receipt scanning">
 <title>CashHub PH</title>
-<!-- PWA icons and manifest are injected at runtime via JS below -->
-<script>
-// ── PWA ICON GENERATOR ──────────────────────────────────────────────────
-// Draws the CashHub icon on a canvas and returns a data URL
-function _makePwaIcon(size){
-  const c=document.createElement('canvas');
-  c.width=c.height=size;
-  const x=c.getContext('2d');
-  const r=size*0.18; // corner radius
-  // Rounded rect background
-  x.beginPath();
-  x.moveTo(r,0);x.lineTo(size-r,0);x.quadraticCurveTo(size,0,size,r);
-  x.lineTo(size,size-r);x.quadraticCurveTo(size,size,size-r,size);
-  x.lineTo(r,size);x.quadraticCurveTo(0,size,0,size-r);
-  x.lineTo(0,r);x.quadraticCurveTo(0,0,r,0);x.closePath();
-  const grad=x.createLinearGradient(0,0,size,size);
-  grad.addColorStop(0,'#FF6B00');grad.addColorStop(1,'#FF9640');
-  x.fillStyle=grad;x.fill();
-  // White circle backdrop
-  x.beginPath();x.arc(size*0.5,size*0.44,size*0.28,0,Math.PI*2);
-  x.fillStyle='rgba(255,255,255,0.18)';x.fill();
-  // "₱" peso sign
-  x.fillStyle='#fff';
-  x.font=`bold ${size*0.38}px -apple-system,sans-serif`;
-  x.textAlign='center';x.textBaseline='middle';
-  x.fillText('₱',size*0.5,size*0.44);
-  // "CashHub" wordmark tiny
-  x.font=`bold ${size*0.1}px -apple-system,sans-serif`;
-  x.fillStyle='rgba(255,255,255,0.9)';
-  x.fillText('CashHub PH',size*0.5,size*0.78);
-  return c.toDataURL('image/png');
-}
-
-// ── INJECT MANIFEST as blob link ─────────────────────────────────────────
-function _injectPwaManifest(){
-  const icon192=_makePwaIcon(192);
-  const icon512=_makePwaIcon(512);
-  // Store icons globally for apple touch icon
-  window._pwaIcon192=icon192;
-  window._pwaIcon512=icon512;
-  const manifest={
-    name:'CashHub PH',
-    short_name:'CashHub',
-    description:'GCash merchant transaction recorder',
-    start_url:'./',
-    display:'standalone',
-    orientation:'portrait',
-    background_color:'#FF6B00',
-    theme_color:'#FF6B00',
-    icons:[
-      {src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-      {src:icon512,sizes:'512x512',type:'image/png',purpose:'any maskable'}
-    ]
-  };
-  const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const link=document.createElement('link');
-  link.rel='manifest';link.href=url;
-  document.head.appendChild(link);
-  // Apple touch icon
-  const iconLink=document.createElement('link');
-  iconLink.rel='apple-touch-icon';iconLink.href=icon192;
-  document.head.appendChild(iconLink);
-  // Apple splash / startup image (basic)
-  const metaApple=document.createElement('meta');
-  metaApple.name='apple-mobile-web-app-status-bar-style';
-  metaApple.content='black-translucent';
-  document.head.appendChild(metaApple);
-}
-
-// ── SERVICE WORKER (inline via blob) ────────────────────────────────────
-function _registerServiceWorker(){
-  if(!('serviceWorker' in navigator)) return;
-  const CACHE='cashhub-v1';
-  const swCode=`
-const CACHE='${''+'cashhub-v1'}';
-self.addEventListener('install',e=>{
-  e.waitUntil(
-    caches.open(CACHE).then(c=>c.addAll(['./',location.href]))
-      .catch(()=>{}) // Ignore if offline at install
-      .then(()=>self.skipWaiting())
-  );
-});
-self.addEventListener('activate',e=>{
-  e.waitUntil(
-    caches.keys().then(keys=>Promise.all(
-      keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))
-    )).then(()=>self.clients.claim())
-  );
-});
-self.addEventListener('fetch',e=>{
-  // Cache-first for the HTML file, network-first for everything else
-  if(e.request.mode==='navigate'){
-    e.respondWith(
-      fetch(e.request).then(r=>{
-        const clone=r.clone();
-        caches.open(CACHE).then(c=>c.put(e.request,clone));
-        return r;
-      }).catch(()=>caches.match(e.request).then(r=>r||caches.match('./')))
-    );
-  } else {
-    e.respondWith(
-      caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>new Response('',{status:408})))
-    );
-  }
-});
-`;
-  try{
-    const blob=new Blob([swCode],{type:'text/javascript'});
-    const swUrl=URL.createObjectURL(blob);
-    navigator.serviceWorker.register(swUrl,{scope:'./'})
-      .then(reg=>{
-        console.log('[CashHub PWA] Service worker registered',reg.scope);
-      })
-      .catch(err=>{
-        // Blob SW may fail in some browsers (Firefox, Safari) — that's OK
-        // The app still works, just without offline SW caching
-        console.warn('[CashHub PWA] SW registration skipped:',err.message);
-      });
-  }catch(e){
-    console.warn('[CashHub PWA] SW blob creation failed:',e.message);
-  }
-}
-
-// ── BACK BUTTON TRAP ────────────────────────────────────────────────────
-// Push a dummy state so Android back button doesn't exit the app
-function _initBackButtonTrap(){
-  if(window.history&&window.history.pushState){
-    window.history.pushState({cashhub:true},'','');
-    window.addEventListener('popstate',function(e){
-      // Re-push so the next back press is also trapped
-      window.history.pushState({cashhub:true},'','');
-      // If on a sub-screen, go back to dashboard instead of exiting
-      const active=document.querySelector('.screen.active');
-      if(active&&active.id!=='screen-dashboard'){
-        if(typeof showTab==='function') showTab('dashboard');
-      }
-      // If already on dashboard, do nothing (don't exit)
-    });
-  }
-}
-
-// Run all PWA setup after DOM is ready
-document.addEventListener('DOMContentLoaded',function(){
-  _injectPwaManifest();
-  _registerServiceWorker();
-  _initBackButtonTrap();
-});
-</script>
 <style>
 /* ══ TABLER ICON SUBSET (SVG sprites) ══ */
 .ti{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:1}
@@ -502,6 +350,9 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 .balance-card{animation:fadeSlideIn 0.35s ease both;}
 
 /* ════════ TRIAL SYSTEM STYLES ════════ */
+.tf-main{font-weight:700;color:#1A1D23}
+.bm-tab{background:transparent;border:none;border-radius:7px;padding:7px 4px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;font-family:var(--font);transition:all 0.18s}
+.bm-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.08)}
 #trial-overlay{position:fixed;inset:0;background:rgba(10,10,20,0.97);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
 .trial-box{background:#fff;border-radius:24px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
 .trial-header{background:linear-gradient(135deg,#FF6B00,#FF9640);padding:28px 24px;text-align:center;color:#fff}
@@ -519,6 +370,8 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 .trial-btn{width:100%;padding:14px;background:#FF6B00;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:opacity .15s}
 .trial-btn:active{opacity:.85}
+.trial-contact-btn{display:inline-flex;align-items:center;gap:8px;background:#1877F2;color:#fff;text-decoration:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;font-family:inherit;transition:opacity 0.15s}
+.trial-contact-btn:active{opacity:0.85}
 .trial-err{color:#FF3B30;font-size:12px;font-weight:600;text-align:center;min-height:18px;margin-bottom:8px}
 
 /* Expired overlay */
@@ -566,66 +419,181 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 
 /* ── EXPIRED INTERCEPT ── */
 
-/* ── WALKTHROUGH ── */
-#walkthrough-overlay{display:none;position:fixed;inset:0;z-index:10000;pointer-events:none}
-#walkthrough-overlay.show{display:block;pointer-events:auto}
-.wt-backdrop{position:absolute;inset:0;background:rgba(10,10,20,0.82)}
-.wt-card{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
-  width:calc(100% - 40px);max-width:420px;background:#fff;border-radius:20px;
-  padding:22px 20px 18px;box-shadow:0 8px 40px rgba(0,0,0,0.3);pointer-events:auto}
-.wt-step-badge{font-size:11px;font-weight:700;color:#FF6B00;background:rgba(255,107,0,0.1);
-  border-radius:20px;padding:3px 10px;display:inline-block;margin-bottom:10px}
-.wt-title{font-size:17px;font-weight:800;color:#1A1D23;margin-bottom:6px}
-.wt-desc{font-size:13px;color:#6B7280;line-height:1.55;margin-bottom:16px}
-.wt-actions{display:flex;align-items:center;justify-content:space-between}
-.wt-dots{display:flex;gap:5px}
-.wt-dot{width:6px;height:6px;border-radius:50%;background:#E5E7EB;transition:all 0.2s}
-.wt-dot.active{width:18px;border-radius:3px;background:#FF6B00}
-.wt-btn-row{display:flex;gap:8px}
-.wt-skip{font-size:12px;font-weight:600;color:#9CA3AF;background:none;border:none;cursor:pointer;padding:6px 4px;font-family:var(--font)}
-.wt-next{font-size:13px;font-weight:700;color:#fff;background:#FF6B00;border:none;border-radius:10px;
-  padding:9px 20px;cursor:pointer;font-family:var(--font)}
-.wt-highlight{position:absolute;border-radius:12px;box-shadow:0 0 0 4px #FF6B00,0 0 0 8px rgba(255,107,0,0.25);
-  pointer-events:none;transition:all 0.35s;z-index:10001}
+/* ── INTRO SLIDER ── */
+#intro-overlay{display:none;position:fixed;inset:0;z-index:10000;background:#fff;flex-direction:column;overflow:hidden}
+#intro-overlay.show{display:flex}
+.intro-slides-track{display:flex;flex:1;transition:transform 0.4s cubic-bezier(0.4,0,0.2,1);will-change:transform}
+.intro-slide{min-width:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 0 0 0;box-sizing:border-box;position:relative}
+.intro-slide-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.intro-illus{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.intro-card{background:#fff;border-radius:28px 28px 0 0;padding:28px 24px 12px;width:100%;position:relative;z-index:2;box-shadow:0 -4px 30px rgba(0,0,0,0.08)}
+.intro-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#FF6B00;margin-bottom:8px}
+.intro-title{font-size:22px;font-weight:800;color:#1A1D23;line-height:1.25;margin-bottom:10px;letter-spacing:-0.3px}
+.intro-desc{font-size:14px;color:#6B7280;line-height:1.6;margin-bottom:20px}
+.intro-footer{display:flex;align-items:center;justify-content:space-between;padding:0 24px 32px;background:#fff;width:100%;box-sizing:border-box;gap:12px}
+.intro-dots{display:flex;gap:6px;align-items:center}
+.intro-dot{width:7px;height:7px;border-radius:50%;background:#E5E7EB;transition:all 0.3s;cursor:pointer}
+.intro-dot.active{width:22px;border-radius:4px;background:#FF6B00}
+.intro-btn-skip{font-size:13px;font-weight:600;color:#9CA3AF;background:none;border:none;cursor:pointer;padding:8px 4px;font-family:var(--font);white-space:nowrap}
+.intro-btn-next{font-size:14px;font-weight:700;color:#fff;background:#FF6B00;border:none;border-radius:14px;padding:13px 28px;cursor:pointer;font-family:var(--font);white-space:nowrap;box-shadow:0 4px 14px rgba(255,107,0,0.35);transition:opacity 0.15s}
+.intro-btn-next:active{opacity:0.85}
+.intro-btn-prev{font-size:14px;font-weight:600;color:#6B7280;background:#F3F4F6;border:none;border-radius:14px;padding:13px 18px;cursor:pointer;font-family:var(--font);white-space:nowrap;transition:opacity 0.15s}
+.intro-btn-prev:active{opacity:0.75}
+@keyframes intro-fade-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
-<!-- ═══════════ PWA INSTALL PROMPT ═══════════ -->
-<div id="pwa-install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:11000;padding:12px 16px 24px;background:#fff;border-top:1px solid var(--border);box-shadow:0 -4px 20px rgba(0,0,0,0.12);animation:slideUpBanner 0.35s ease">
-  <div style="display:flex;align-items:center;gap:12px">
-    <canvas id="pwa-install-icon" width="48" height="48" style="border-radius:11px;flex-shrink:0"></canvas>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:14px;font-weight:700;color:var(--text)">Install CashHub PH</div>
-      <div style="font-size:12px;color:var(--text3);margin-top:1px">Add to home screen — works offline, no browser bar</div>
-    </div>
-    <button onclick="dismissInstallBanner()" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text3)">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
-    <button onclick="dismissInstallBanner()" style="background:var(--bg3);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font)">Not now</button>
-    <button id="pwa-install-btn" onclick="triggerPwaInstall()" style="background:var(--orange);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:var(--font)">
-      Install App
-    </button>
-  </div>
-</div>
-@keyframes slideUpBanner{from{transform:translateY(100%)}to{transform:translateY(0)}}
-
 <div class="app" id="app">
 <!-- Walkthrough overlay -->
-<div id="walkthrough-overlay">
-  <div class="wt-backdrop"></div>
-  <div class="wt-highlight" id="wt-highlight"></div>
-  <div class="wt-card" id="wt-card">
-    <div class="wt-step-badge" id="wt-badge">Step 1 of 5</div>
-    <div class="wt-title" id="wt-title">Welcome to CashHub PH 👋</div>
-    <div class="wt-desc" id="wt-desc">Your all-in-one GCash remittance tracker. Let's show you around in 30 seconds.</div>
-    <div class="wt-actions">
-      <div class="wt-dots" id="wt-dots"></div>
-      <div class="wt-btn-row">
-        <button class="wt-skip" onclick="skipWalkthrough()">Skip</button>
-        <button class="wt-next" id="wt-next-btn" onclick="wtNext()">Next →</button>
+<!-- ═══════════ INTRO SLIDER ═══════════ -->
+<div id="intro-overlay">
+  <div class="intro-slides-track" id="intro-track">
+
+    <!-- Slide 1: Welcome -->
+    <div class="intro-slide">
+      <div class="intro-slide-bg" style="background:linear-gradient(160deg,#FFF3EB 0%,#FFE0C8 100%)">
+        <div class="intro-illus">
+          <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+            <circle cx="110" cy="110" r="90" fill="rgba(255,107,0,0.08)"/>
+            <circle cx="110" cy="110" r="65" fill="rgba(255,107,0,0.12)"/>
+            <rect x="72" y="68" width="76" height="92" rx="10" fill="#FF6B00"/>
+            <rect x="78" y="76" width="64" height="76" rx="7" fill="#FFF3EB"/>
+            <rect x="86" y="88" width="48" height="6" rx="3" fill="#FF6B00" opacity="0.4"/>
+            <rect x="86" y="100" width="36" height="6" rx="3" fill="#FF6B00" opacity="0.4"/>
+            <rect x="86" y="112" width="42" height="6" rx="3" fill="#FF6B00" opacity="0.4"/>
+            <rect x="86" y="124" width="28" height="6" rx="3" fill="#FF6B00" opacity="0.4"/>
+            <circle cx="148" cy="148" r="22" fill="#00B67A"/>
+            <line x1="148" y1="140" x2="148" y2="156" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            <line x1="140" y1="148" x2="156" y2="148" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
       </div>
+      <div class="intro-card">
+        <div class="intro-label">Welcome</div>
+        <div class="intro-title">Your GCash merchant notebook — upgraded</div>
+        <div class="intro-desc">CashHub replaces your pen-and-paper transaction logbook with a fast, smart digital tracker built for GCash remittance merchants.</div>
+      </div>
+    </div>
+
+    <!-- Slide 2: Scan Receipt -->
+    <div class="intro-slide">
+      <div class="intro-slide-bg" style="background:linear-gradient(160deg,#EBF4FF 0%,#C8DFFF 100%)">
+        <div class="intro-illus">
+          <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+            <circle cx="110" cy="110" r="90" fill="rgba(0,122,255,0.07)"/>
+            <rect x="70" y="65" width="80" height="100" rx="10" fill="#fff" stroke="#007AFF" stroke-width="2"/>
+            <rect x="80" y="80" width="60" height="7" rx="3.5" fill="#007AFF" opacity="0.25"/>
+            <rect x="80" y="94" width="44" height="6" rx="3" fill="#007AFF" opacity="0.18"/>
+            <rect x="80" y="106" width="52" height="6" rx="3" fill="#007AFF" opacity="0.18"/>
+            <rect x="80" y="118" width="36" height="6" rx="3" fill="#007AFF" opacity="0.18"/>
+            <rect x="80" y="130" width="48" height="6" rx="3" fill="#007AFF" opacity="0.18"/>
+            <!-- Camera viewfinder -->
+            <path d="M88 63 L88 57 L82 57" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M132 63 L132 57 L138 57" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M88 167 L88 173 L82 173" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M132 167 L132 173 L138 173" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="148" cy="80" r="18" fill="#007AFF"/>
+            <path d="M142 80 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0" stroke="#fff" stroke-width="1.8" fill="none"/>
+            <circle cx="148" cy="80" r="3" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <div class="intro-card">
+        <div class="intro-label">Scan</div>
+        <div class="intro-title">Point. Shoot. Done in seconds</div>
+        <div class="intro-desc">Just point your camera at the GCash receipt or upload a screenshot. CashHub reads the amount, reference number, and customer details automatically — no typing needed.</div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Cash In / Cash Out -->
+    <div class="intro-slide">
+      <div class="intro-slide-bg" style="background:linear-gradient(160deg,#EBFFF6 0%,#C2F5E0 100%)">
+        <div class="intro-illus">
+          <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+            <circle cx="110" cy="110" r="90" fill="rgba(0,182,122,0.08)"/>
+            <!-- Cash In card -->
+            <rect x="58" y="72" width="76" height="46" rx="10" fill="#fff" stroke="#00B67A" stroke-width="1.5"/>
+            <circle cx="74" cy="95" r="10" fill="rgba(0,182,122,0.15)"/>
+            <line x1="74" y1="90" x2="74" y2="100" stroke="#00B67A" stroke-width="2" stroke-linecap="round"/>
+            <line x1="69" y1="95" x2="79" y2="95" stroke="#00B67A" stroke-width="2" stroke-linecap="round"/>
+            <rect x="90" y="86" width="36" height="6" rx="3" fill="#00B67A" opacity="0.3"/>
+            <rect x="90" y="97" width="24" height="5" rx="2.5" fill="#00B67A" opacity="0.18"/>
+            <!-- Cash Out card -->
+            <rect x="86" y="128" width="76" height="46" rx="10" fill="#fff" stroke="#FF6B00" stroke-width="1.5"/>
+            <circle cx="102" cy="151" r="10" fill="rgba(255,107,0,0.12)"/>
+            <line x1="102" y1="146" x2="102" y2="156" stroke="#FF6B00" stroke-width="2" stroke-linecap="round"/>
+            <polyline points="97,151 102,156 107,151" stroke="#FF6B00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <rect x="118" y="142" width="36" height="6" rx="3" fill="#FF6B00" opacity="0.3"/>
+            <rect x="118" y="153" width="24" height="5" rx="2.5" fill="#FF6B00" opacity="0.18"/>
+          </svg>
+        </div>
+      </div>
+      <div class="intro-card">
+        <div class="intro-label">Transactions</div>
+        <div class="intro-title">Every peso in and out — recorded instantly</div>
+        <div class="intro-desc">Cash-In and Cash-Out records are saved the moment you confirm. No more forgetting to write it down, no lost pages, no messy handwriting.</div>
+      </div>
+    </div>
+
+    <!-- Slide 4: Reports -->
+    <div class="intro-slide">
+      <div class="intro-slide-bg" style="background:linear-gradient(160deg,#FFFBEB 0%,#FDE8B0 100%)">
+        <div class="intro-illus">
+          <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+            <circle cx="110" cy="110" r="90" fill="rgba(245,158,11,0.08)"/>
+            <rect x="64" y="78" width="92" height="80" rx="10" fill="#fff" stroke="#F59E0B" stroke-width="1.5"/>
+            <!-- Bar chart -->
+            <rect x="78" y="130" width="14" height="18" rx="3" fill="#F59E0B" opacity="0.4"/>
+            <rect x="98" y="116" width="14" height="32" rx="3" fill="#F59E0B" opacity="0.65"/>
+            <rect x="118" y="104" width="14" height="44" rx="3" fill="#F59E0B"/>
+            <rect x="138" y="120" width="14" height="28" rx="3" fill="#F59E0B" opacity="0.5"/>
+            <!-- Trend line -->
+            <polyline points="85,132 105,118 125,106 145,122" stroke="#FF6B00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-dasharray="4,2"/>
+            <circle cx="145" cy="122" r="4" fill="#FF6B00"/>
+            <rect x="74" y="86" width="40" height="6" rx="3" fill="#F59E0B" opacity="0.25"/>
+          </svg>
+        </div>
+      </div>
+      <div class="intro-card">
+        <div class="intro-label">Reports</div>
+        <div class="intro-title">Know your income at a glance</div>
+        <div class="intro-desc">CashHub totals your fees and profit automatically — daily, weekly, or monthly. No more end-of-day adding up by hand.</div>
+      </div>
+    </div>
+
+    <!-- Slide 5: Get Started -->
+    <div class="intro-slide">
+      <div class="intro-slide-bg" style="background:linear-gradient(160deg,#1A1D23 0%,#2D3748 100%)">
+        <div class="intro-illus">
+          <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+            <circle cx="110" cy="110" r="75" fill="rgba(255,107,0,0.12)"/>
+            <circle cx="110" cy="110" r="50" fill="rgba(255,107,0,0.18)"/>
+            <circle cx="110" cy="110" r="32" fill="#FF6B00"/>
+            <polyline points="98,110 107,120 124,100" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <!-- Stars -->
+            <circle cx="60" cy="65" r="3" fill="#FF6B00" opacity="0.6"/>
+            <circle cx="158" cy="72" r="4" fill="#FF9640" opacity="0.5"/>
+            <circle cx="52" cy="148" r="2.5" fill="#FF6B00" opacity="0.4"/>
+            <circle cx="166" cy="150" r="3" fill="#FF9640" opacity="0.6"/>
+            <circle cx="110" cy="48" r="3.5" fill="#FFB87A" opacity="0.5"/>
+          </svg>
+        </div>
+      </div>
+      <div class="intro-card" style="background:#1A1D23;border-radius:28px 28px 0 0">
+        <div class="intro-label" style="color:#FF9640">You're all set!</div>
+        <div class="intro-title" style="color:#fff">Ready to record your first transaction 🎉</div>
+        <div class="intro-desc" style="color:#9CA3AF">Start by adding your initial GCash capital in Settings, then tap the <strong style="color:#FF6B00">+</strong> button to record your first transaction.</div>
+      </div>
+    </div>
+
+  </div><!-- end track -->
+
+  <div class="intro-footer" id="intro-footer">
+    <button class="intro-btn-prev" id="intro-prev-btn" onclick="introPrev()" style="display:none">← Back</button>
+    <div class="intro-dots" id="intro-dots"></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="intro-btn-skip" id="intro-skip-btn" onclick="skipIntro()">Skip</button>
+      <button class="intro-btn-next" id="intro-next-btn" onclick="introNext()">Next →</button>
     </div>
   </div>
 </div>
@@ -694,7 +662,7 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
         Add Deposit
       </button>
     </div>
-    <div style="font-size:30px;font-weight:800;letter-spacing:-1px;font-family:var(--mono)" id="dash-gcash-balance">₱0.00</div>
+    <div style="font-size:30px;font-weight:800;letter-spacing:-1px;font-family:var(--mono);cursor:pointer;display:flex;align-items:center;gap:8px" id="dash-gcash-balance" onclick="showDepositModal()">₱0.00 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
     <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.15)">
       <div>
         <div style="font-size:10px;opacity:0.7;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Deposit (Puhunan)</div>
@@ -1480,26 +1448,33 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
     </button>
     <button class="btn btn-danger btn-sm" onclick="clearData()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-      Clear All Transaction Data
+      Clear Transactions Only
+    </button>
+    <button class="btn btn-danger btn-sm" onclick="clearAllData()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      Clear All + Reset Balance
     </button>
   </div>
 
-  <div class="section-label">App</div>
-  <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
-      <canvas id="settings-pwa-icon" width="44" height="44" style="border-radius:10px;flex-shrink:0"></canvas>
+  <div class="section-label">Support &amp; Feedback</div>
+  <div class="card" style="padding:16px">
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
+      Have a question, found a bug, or want a feature? Reach out directly — your feedback helps improve CashHub PH.
+    </div>
+    <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;background:#1877F2;color:#fff;text-decoration:none;border-radius:12px;padding:13px 16px;font-size:14px;font-weight:700;font-family:var(--font);transition:opacity 0.15s;margin-bottom:10px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" style="flex-shrink:0"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
       <div>
-        <div style="font-size:13px;font-weight:700;color:var(--text)">CashHub PH</div>
-        <div style="font-size:11px;color:var(--text3)" id="pwa-install-status">Loading status...</div>
+        <div>Message on Facebook</div>
+        <div style="font-size:11px;font-weight:500;opacity:0.85">facebook.com/domz.mojar</div>
       </div>
-    </div>
-    <button class="btn btn-primary btn-sm" id="settings-install-btn" onclick="triggerPwaInstall()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Install as App
-    </button>
-    <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
-      Install to home screen for full-screen experience,<br>faster launch, and offline use without browser.
-    </div>
+    </a>
+    <a href="https://m.me/domz.mojar" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0099FF,#A033FF);color:#fff;text-decoration:none;border-radius:12px;padding:13px 16px;font-size:14px;font-weight:700;font-family:var(--font);transition:opacity 0.15s">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.2)"/><path d="M12 4C7.6 4 4 7.3 4 11.4c0 2.2 1 4.2 2.7 5.6V20l3-1.7c.8.2 1.6.3 2.3.3 4.4 0 8-3.3 8-7.4S16.4 4 12 4zm.8 10l-2-2.2-4 2.2 4.4-4.7 2.1 2.2 3.9-2.2-4.4 4.7z" fill="#fff"/></svg>
+      <div>
+        <div>Chat on Messenger</div>
+        <div style="font-size:11px;font-weight:500;opacity:0.85">Quick reply · usually fast</div>
+      </div>
+    </a>
   </div>
 
   <div style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0 4px">
@@ -1561,33 +1536,71 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
   </div>
 </div>
 
-<!-- DEPOSIT MODAL -->
+<!-- GCASH BALANCE MODAL -->
 <div class="modal-overlay" id="deposit-modal" onclick="if(event.target===this)closeDepositModal()">
-  <div class="modal-sheet">
+  <div class="modal-sheet" style="max-height:92vh;overflow-y:auto">
     <div class="modal-handle"></div>
-    <div class="modal-title">Add GCash Deposit (Puhunan)</div>
-    <div style="display:flex;flex-direction:column;gap:14px">
-      <div style="background:var(--blue-light);border:1px solid rgba(0,122,255,0.2);border-radius:var(--r2);padding:12px 14px;font-size:13px;color:#1e40af;line-height:1.5">
-        <strong>GCash Balance = Deposit + All Profits from Fees</strong><br>
-        This tracks your total GCash money available for transactions.
-      </div>
+    <div class="modal-title">GCash Balance</div>
+    <!-- Current balance display -->
+    <div id="bal-modal-summary" style="background:linear-gradient(135deg,#1a3a6b,#0056d6);border-radius:var(--r2);padding:14px 16px;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
       <div>
+        <div style="font-size:10px;opacity:0.75;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Current Balance</div>
+        <div style="font-size:24px;font-weight:800;font-family:var(--mono)" id="bal-modal-amount">₱0.00</div>
+      </div>
+      <div id="bal-override-badge" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:4px 10px;font-size:10px;font-weight:700;letter-spacing:0.3px">MANUAL</div>
+    </div>
+    <!-- Tabs -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;background:var(--bg3);border-radius:10px;padding:4px;margin-bottom:14px">
+      <button id="bm-tab-deposit" class="bm-tab active" onclick="setBmTab('deposit')">Add Deposit</button>
+      <button id="bm-tab-edit" class="bm-tab" onclick="setBmTab('edit')">Edit Balance</button>
+      <button id="bm-tab-history" class="bm-tab" onclick="setBmTab('history')">History</button>
+    </div>
+    <!-- Tab: Add Deposit -->
+    <div id="bm-panel-deposit">
+      <div style="background:var(--blue-light);border:1px solid rgba(0,122,255,0.2);border-radius:var(--r2);padding:11px 13px;font-size:12px;color:#1e40af;line-height:1.5;margin-bottom:12px">
+        Add a top-up or new capital to your GCash float. This will add to your running balance.
+      </div>
+      <div style="margin-bottom:10px">
         <label class="form-label">Deposit Amount (₱)</label>
         <input class="form-input" id="dep-amount" type="number" inputmode="decimal" placeholder="0.00">
       </div>
       <div>
         <label class="form-label">Note (optional)</label>
-        <input class="form-input" id="dep-note" type="text" placeholder="e.g. Initial capital, top-up..." autocomplete="off">
+        <input class="form-input" id="dep-note" type="text" placeholder="e.g. Initial capital, top-up from GCash..." autocomplete="off">
       </div>
-      <div style="background:var(--bg3);border-radius:var(--r2);padding:12px 14px">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Deposit History</div>
-        <div id="deposit-history-list" style="font-size:13px;color:var(--text2)">No deposits yet.</div>
+      <button class="btn btn-primary btn-sm" style="width:100%;margin-top:14px" onclick="saveDeposit()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Deposit
+      </button>
+    </div>
+    <!-- Tab: Edit Actual Balance -->
+    <div id="bm-panel-edit" style="display:none">
+      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--r2);padding:11px 13px;font-size:12px;color:#92400e;line-height:1.55;margin-bottom:12px">
+        <strong>Set your actual current GCash balance.</strong> Use this if your balance doesn't match — for example after a correction, reload, or when starting fresh. Future transactions will be computed from this value.
+      </div>
+      <div style="margin-bottom:10px">
+        <label class="form-label">Actual GCash Balance (₱)</label>
+        <input class="form-input" id="bal-override-input" type="number" inputmode="decimal" placeholder="Enter your real current balance">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+        <button class="btn btn-danger btn-sm" onclick="clearBalanceOverride()" id="bal-clear-override-btn">
+          Clear Override
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="saveBalanceOverride()">
+          Save Balance
+        </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px">
-      <button class="btn btn-outline btn-sm" onclick="closeDepositModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveDeposit()">Add Deposit</button>
+    <!-- Tab: History -->
+    <div id="bm-panel-history" style="display:none">
+      <div id="deposit-history-list" style="font-size:13px;color:var(--text2)">No deposits yet.</div>
+      <div id="bal-override-history" style="margin-top:8px"></div>
+      <button class="btn btn-danger btn-sm" style="width:100%;margin-top:14px" onclick="resetAllBalance()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Reset GCash Balance to Zero
+      </button>
     </div>
+    <button class="btn btn-outline btn-sm" style="width:100%;margin-top:12px" onclick="closeDepositModal()">Close</button>
   </div>
 </div>
 
@@ -1686,6 +1699,7 @@ const _WORKER_URL = 'https://cashhub-codes.storage1st15gb.workers.dev';
 const DEFAULT_DB = {
   transactions:[],
   deposits:[],
+  balanceOverride:null,
   settings:{
     cinFeeType:'fixed',cinFixedFee:15,cinPctFee:1,cinTiers:null,
     coutFeeType:'fixed',coutFixedFee:20,coutPctFee:1,coutTiers:null,
@@ -1694,7 +1708,7 @@ const DEFAULT_DB = {
   }
 };
 let DB = JSON.parse(JSON.stringify(DEFAULT_DB));
-try{const r=localStorage.getItem('cashhub_ph_v3');if(r){const p=JSON.parse(r);DB={...DEFAULT_DB,...p,settings:{...DEFAULT_DB.settings,...(p.settings||{})},deposits:p.deposits||[]}; }}catch(e){}
+try{const r=localStorage.getItem('cashhub_ph_v3');if(r){const p=JSON.parse(r);DB={...DEFAULT_DB,...p,settings:{...DEFAULT_DB.settings,...(p.settings||{})},deposits:p.deposits||[],balanceOverride:p.balanceOverride!==undefined?p.balanceOverride:null,balanceOverrideTime:p.balanceOverrideTime||null}; }}catch(e){}
 function saveDB(){try{localStorage.setItem('cashhub_ph_v3',JSON.stringify(DB));}catch(e){showToast('Storage error: '+e.message);}}
 function saveSetting(k,v){DB.settings[k]=v;saveDB();}
 
@@ -1770,7 +1784,7 @@ function showTab(id){
   if(id==='dashboard')renderDashboard();
   if(id==='records')renderRecords();
   if(id==='reports')renderReports();
-  if(id==='settings'){updateDataSummary();renderPwaSettingsStatus();}
+  if(id==='settings')updateDataSummary();
   if(id==='scan'){
     // Only reset to source step if no mid-flow step is active
     const extracted=document.getElementById('scan-step-extracted');
@@ -1828,7 +1842,17 @@ function renderDashboard(){
   const allCin=allTx.filter(t=>t.type==='Cash-In');
   const totalCoutGcash=allCout.reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
   const totalCinGcash=allCin.reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
-  const gcashBalance=totalDeposit+totalCoutGcash-totalCinGcash+totalProfit;
+  let gcashBalance;
+  if(DB.balanceOverride!==null&&DB.balanceOverride!==undefined){
+    const overrideTime=DB.balanceOverrideTime||0;
+    const txSince=allTx.filter(t=>new Date(t.date).getTime()>=overrideTime);
+    const coutSince=txSince.filter(t=>t.type==='Cash-Out').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
+    const cinSince=txSince.filter(t=>t.type==='Cash-In').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
+    const feesSince=txSince.reduce((a,t)=>a+(parseFloat(t.fee)||0),0);
+    gcashBalance=DB.balanceOverride+coutSince-cinSince+feesSince;
+  } else {
+    gcashBalance=totalDeposit+totalCoutGcash-totalCinGcash+totalProfit;
+  }
 
   const cinTx=todayTx.filter(t=>t.type==='Cash-In');
   const coutTx=todayTx.filter(t=>t.type==='Cash-Out');
@@ -3009,22 +3033,114 @@ function saveDeposit(){
   DB.deposits.push({id:Date.now(),amount:amt,note,date:new Date().toISOString()});
   saveDB();
   renderDepositHistory();
+  updateBalanceModalSummary();
   document.getElementById('dep-amount').value='';
   document.getElementById('dep-note').value='';
   renderDashboard();
   showToast('Deposit added ✓');
 }
+
+function saveBalanceOverride(){
+  const val=parseFloat(document.getElementById('bal-override-input')?.value);
+  if(isNaN(val)||val<0){showToast('Please enter a valid balance amount.');return;}
+  DB.balanceOverride=val;
+  DB.balanceOverrideTime=Date.now();
+  saveDB();
+  renderDashboard();
+  updateBalanceModalSummary();
+  showToast('GCash balance updated ✓');
+}
+
+function clearBalanceOverride(){
+  if(!confirm('Remove manual balance override? Balance will go back to being calculated from deposits and transactions.'))return;
+  DB.balanceOverride=null;
+  DB.balanceOverrideTime=null;
+  saveDB();
+  renderDashboard();
+  updateBalanceModalSummary();
+  showToast('Manual override cleared.');
+}
+
+function resetAllBalance(){
+  if(!confirm('Reset GCash balance to zero? This will clear all deposits and any manual override. Transactions are NOT deleted.'))return;
+  DB.deposits=[];
+  DB.balanceOverride=null;
+  DB.balanceOverrideTime=null;
+  saveDB();
+  renderDashboard();
+  updateBalanceModalSummary();
+  renderDepositHistory();
+  showToast('GCash balance reset to zero.');
+}
+
+function deleteDeposit(id){
+  if(!confirm('Delete this deposit entry?'))return;
+  DB.deposits=(DB.deposits||[]).filter(d=>d.id!==id);
+  saveDB();
+  renderDashboard();
+  renderDepositHistory();
+  updateBalanceModalSummary();
+  showToast('Deposit removed.');
+}
+
+function setBmTab(tab){
+  ['deposit','edit','history'].forEach(t=>{
+    document.getElementById('bm-tab-'+t).classList.toggle('active',t===tab);
+    document.getElementById('bm-panel-'+t).style.display=t===tab?'block':'none';
+  });
+  if(tab==='history')renderDepositHistory();
+  if(tab==='edit'){
+    const inp=document.getElementById('bal-override-input');
+    if(inp&&DB.balanceOverride!==null&&DB.balanceOverride!==undefined)inp.value=DB.balanceOverride;
+    const clearBtn=document.getElementById('bal-clear-override-btn');
+    if(clearBtn)clearBtn.style.display=DB.balanceOverride!==null&&DB.balanceOverride!==undefined?'inline-flex':'none';
+  }
+}
+
+function updateBalanceModalSummary(){
+  // Recompute balance for display inside modal
+  const allTx=DB.transactions||[];
+  const totalDeposit=(DB.deposits||[]).reduce((a,d)=>a+(parseFloat(d.amount)||0),0);
+  const totalProfit=allTx.reduce((a,t)=>a+(parseFloat(t.fee)||0),0);
+  let gcashBalance;
+  if(DB.balanceOverride!==null&&DB.balanceOverride!==undefined){
+    const overrideTime=DB.balanceOverrideTime||0;
+    const txSince=allTx.filter(t=>new Date(t.date).getTime()>=overrideTime);
+    const coutSince=txSince.filter(t=>t.type==='Cash-Out').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
+    const cinSince=txSince.filter(t=>t.type==='Cash-In').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
+    const feesSince=txSince.reduce((a,t)=>a+(parseFloat(t.fee)||0),0);
+    gcashBalance=DB.balanceOverride+coutSince-cinSince+feesSince;
+  } else {
+    const allCout=allTx.filter(t=>t.type==='Cash-Out').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
+    const allCin=allTx.filter(t=>t.type==='Cash-In').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
+    gcashBalance=totalDeposit+allCout-allCin+totalProfit;
+  }
+  const amtEl=document.getElementById('bal-modal-amount');
+  if(amtEl)amtEl.textContent=fmt(gcashBalance);
+  const badge=document.getElementById('bal-override-badge');
+  if(badge)badge.style.display=DB.balanceOverride!==null&&DB.balanceOverride!==undefined?'block':'none';
+}
+
 function renderDepositHistory(){
   const el=document.getElementById('deposit-history-list');if(!el)return;
-  const deps=(DB.deposits||[]).slice().reverse().slice(0,5);
-  if(!deps.length){el.textContent='No deposits yet.';return;}
+  const deps=(DB.deposits||[]).slice().reverse();
+  if(!deps.length){el.innerHTML='<div style="text-align:center;padding:16px 0;color:var(--text3);font-size:13px">No deposits yet.</div>';return;}
   el.innerHTML=deps.map(d=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
       <div>
         <div style="font-size:13px;font-weight:600;color:var(--text)">${fmt(d.amount)}</div>
-        <div style="font-size:11px;color:var(--text3)">${d.note||'—'} · ${new Date(d.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}</div>
+        <div style="font-size:11px;color:var(--text3)">${escHtml(d.note||'—')} · ${new Date(d.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}</div>
       </div>
+      <button onclick="deleteDeposit(${d.id})" style="background:none;border:none;cursor:pointer;padding:6px;color:#EF4444;font-size:11px;font-weight:600;font-family:var(--font)">Delete</button>
     </div>`).join('');
+  // Show override in history if set
+  const ovEl=document.getElementById('bal-override-history');
+  if(ovEl){
+    if(DB.balanceOverride!==null&&DB.balanceOverride!==undefined){
+      const d=new Date(DB.balanceOverrideTime||0).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      ovEl.innerHTML=`<div style="margin-top:10px;padding:10px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--r2)"><div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Manual Override Active</div><div style="font-size:13px;font-weight:600;color:var(--text)">Base: ${fmt(DB.balanceOverride)}</div><div style="font-size:11px;color:var(--text3)">Set on ${d}</div></div>`;
+    } else { ovEl.innerHTML=''; }
+  }
 }
 
 // ════════════════════════════════════════
@@ -3982,7 +4098,13 @@ function updateDataSummary(){
 function clearData(){
   if(!confirm('Permanently delete ALL transaction history? This cannot be undone.'))return;
   DB.transactions=[];saveDB();updateDataSummary();renderDashboard();
-  showToast('All data cleared.');
+  showToast('All transactions cleared.');
+}
+function clearAllData(){
+  if(!confirm('Delete ALL transaction data AND reset GCash balance? This cannot be undone.'))return;
+  DB.transactions=[];DB.deposits=[];DB.balanceOverride=null;DB.balanceOverrideTime=null;
+  saveDB();updateDataSummary();renderDashboard();
+  showToast('All data and balance cleared.');
 }
 function exportCSV(){
   const rows=[['Date','Type','Customer Name','Mobile','Amount','Fee','Ref No.','Status','Transaction ID','Signature','Merchant']];
@@ -4071,11 +4193,11 @@ function startNewTx(type){
     </div>
     <div class="trial-body">
       <ul class="trial-features">
-        <li>Manual cash-in &amp; cash-out recording</li>
-        <li>Receipt photo attachment &amp; reference</li>
-        <li>Customer signature capture</li>
-        <li>Reports, records &amp; CSV export</li>
-        <li>100% offline — no internet needed</li>
+        <li><span class="tf-main">📸 Scan receipt → auto-fill in seconds</span></li>
+        <li><span class="tf-main">⚡ No more writing — GCash details auto-extracted</span></li>
+        <li>Customer signature &amp; receipt photo saved</li>
+        <li>Daily, weekly &amp; monthly profit reports</li>
+        <li>100% stored on your device — no cloud needed</li>
       </ul>
       <div class="trial-input-wrap">
         <input class="trial-input" id="trial-code-input" type="text" placeholder="e.g. TRIAL-A1B2C" maxlength="20"
@@ -4084,9 +4206,13 @@ function startNewTx(type){
       </div>
       <div class="trial-err" id="trial-err"></div>
       <button class="trial-btn" onclick="activateTrial()">Activate Free Trial</button>
-      <div style="text-align:center;margin-top:12px;font-size:11px;color:#9CA3AF">
-        Need a code? Contact the developer.<br>
-        <span style="color:#D1D5DB">Trial code is single-use per file.</span>
+      <div style="text-align:center;margin-top:14px">
+        <div style="font-size:11px;color:#9CA3AF;margin-bottom:8px">Need a trial code?</div>
+        <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener" class="trial-contact-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" style="flex-shrink:0"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+          Message me on Facebook
+        </a>
+        <div style="font-size:10px;color:#6B7280;margin-top:8px">Trial code is single-use per device.</div>
       </div>
     </div>
   </div>
@@ -4327,7 +4453,7 @@ async function activateTrial(){
       startCountdown();
       showToast('Trial activated! ✓');
     }
-    setTimeout(()=>startWalkthrough(), 800);
+    setTimeout(()=>startIntro(), 800);
 
   } catch(e) {
     errEl.textContent = 'Connection error: ' + (e && e.message ? e.message : String(e));
@@ -4400,91 +4526,69 @@ async function renewTrial(){
 
 
 // ════════════════════════════════════════
-// WALKTHROUGH
+// INTRO SLIDER
 // ════════════════════════════════════════
-const _WT_STEPS = [
-  {
-    title: 'Say goodbye to the notebook 📒',
-    desc: 'No more pen-and-paper recording. CashHub replaces your transaction notebook with a fast, smart digital tracker built for GCash remittance merchants.',
-    target: null
-  },
-  {
-    title: 'Scan the receipt — done in seconds 📸',
-    desc: 'Just point your camera at the GCash receipt or upload a screenshot. CashHub reads the amount, reference number, and customer details automatically — no typing needed.',
-    target: 'tab-scan'
-  },
-  {
-    title: 'Every transaction saved instantly',
-    desc: 'Cash-In and Cash-Out records are saved the moment you confirm. No more forgetting to write it down, no lost pages, no messy handwriting.',
-    target: 'tab-records'
-  },
-  {
-    title: 'Know your income at a glance 📊',
-    desc: 'CashHub totals your fees and profit automatically — daily, weekly, or monthly. No more end-of-day adding up your notebook by hand.',
-    target: 'tab-reports'
-  },
-  {
-    title: 'Your GCash balance, always updated 💚',
-    desc: 'The dashboard tracks your running GCash balance as you process transactions. You always know how much float you have left without checking the app.',
-    target: 'screen-dashboard'
-  },
-  {
-    title: 'Ready to go! 🎉',
-    desc: 'Start by adding your initial GCash capital in Settings, then process your first transaction using the + button. Your notebook can finally rest.',
-    target: null
-  }
-];
+const _INTRO_TOTAL = 5;
+let _introStep = 0;
 
-let _wtStep = 0;
-
-function startWalkthrough(){
-  const seen = localStorage.getItem('cashhub_wt_seen');
-  if(seen) return; // Only show once
-  _wtStep = 0;
-  document.getElementById('walkthrough-overlay').classList.add('show');
-  renderWtStep();
+function startIntro(){
+  const seen = localStorage.getItem('cashhub_intro_seen');
+  if(seen) return; // Only show once per device
+  _introStep = 0;
+  document.getElementById('intro-overlay').classList.add('show');
+  renderIntroStep();
 }
 
-function renderWtStep(){
-  const step = _WT_STEPS[_wtStep];
-  const total = _WT_STEPS.length;
-  document.getElementById('wt-badge').textContent = 'Step ' + (_wtStep+1) + ' of ' + total;
-  document.getElementById('wt-title').textContent = step.title;
-  document.getElementById('wt-desc').textContent = step.desc;
-  document.getElementById('wt-next-btn').textContent = _wtStep === total-1 ? 'Get Started!' : 'Next →';
+function renderIntroStep(){
+  const track = document.getElementById('intro-track');
+  const nextBtn = document.getElementById('intro-next-btn');
+  const prevBtn = document.getElementById('intro-prev-btn');
+  const skipBtn = document.getElementById('intro-skip-btn');
+  const dotsEl = document.getElementById('intro-dots');
+  const isLast = _introStep === _INTRO_TOTAL - 1;
+  const isFirst = _introStep === 0;
+
+  // Slide track
+  track.style.transform = 'translateX(-' + (_introStep * 100) + '%)';
 
   // Dots
-  const dots = document.getElementById('wt-dots');
-  dots.innerHTML = _WT_STEPS.map((_,i)=>
-    '<div class="wt-dot'+(_wtStep===i?' active':'')+'"></div>'
+  dotsEl.innerHTML = Array.from({length:_INTRO_TOTAL},(_,i)=>
+    '<div class="intro-dot'+(i===_introStep?' active':'')+'" onclick="introGoTo('+i+')"></div>'
   ).join('');
 
-  // Highlight target element
-  const hl = document.getElementById('wt-highlight');
-  if(step.target){
-    const el = document.getElementById(step.target);
-    if(el){
-      const r = el.getBoundingClientRect();
-      hl.style.cssText = 'left:'+(r.left-4)+'px;top:'+(r.top-4)+'px;width:'+(r.width+8)+'px;height:'+(r.height+8)+'px;display:block';
-    }
-  } else {
-    hl.style.display = 'none';
-  }
+  // Buttons
+  nextBtn.textContent = isLast ? 'Get Started!' : 'Next →';
+  nextBtn.style.background = isLast ? '#00B67A' : '#FF6B00';
+  nextBtn.style.boxShadow = isLast ? '0 4px 14px rgba(0,182,122,0.4)' : '0 4px 14px rgba(255,107,0,0.35)';
+  prevBtn.style.display = isFirst ? 'none' : 'inline-block';
+  skipBtn.style.display = isLast ? 'none' : 'inline-block';
+
+  // Last slide: dark footer matches dark card
+  const footer = document.getElementById('intro-footer');
+  footer.style.background = isLast ? '#1A1D23' : '#fff';
+  footer.style.paddingTop = '16px';
 }
 
-function wtNext(){
-  if(_wtStep >= _WT_STEPS.length - 1){
-    skipWalkthrough();
-    return;
-  }
-  _wtStep++;
-  renderWtStep();
+function introNext(){
+  if(_introStep >= _INTRO_TOTAL - 1){ skipIntro(); return; }
+  _introStep++;
+  renderIntroStep();
 }
 
-function skipWalkthrough(){
-  document.getElementById('walkthrough-overlay').classList.remove('show');
-  document.getElementById('wt-highlight').style.display = 'none';
-  localStorage.setItem('cashhub_wt_seen','1');
+function introPrev(){
+  if(_introStep <= 0) return;
+  _introStep--;
+  renderIntroStep();
+}
+
+function introGoTo(i){
+  _introStep = i;
+  renderIntroStep();
+}
+
+function skipIntro(){
+  document.getElementById('intro-overlay').classList.remove('show');
+  localStorage.setItem('cashhub_intro_seen','1');
 }
 
 // ════════════════════════════════════════
@@ -4503,101 +4607,6 @@ document.addEventListener("DOMContentLoaded", function(){
   initTrialSystem();
   clearScanType(); // start with no type preselected
 });
-
-// ════════════════════════════════════════
-// PWA INSTALL PROMPT
-// ════════════════════════════════════════
-let _pwaInstallEvent = null;
-
-// Capture the browser's beforeinstallprompt event
-window.addEventListener('beforeinstallprompt', function(e){
-  e.preventDefault(); // Don't show browser's default mini-infobar
-  _pwaInstallEvent = e;
-  // Draw icon into banner canvas
-  const canvas = document.getElementById('pwa-install-icon');
-  if(canvas && window._pwaIcon192){
-    const img = new Image();
-    img.onload = () => {
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, 48, 48);
-    };
-    img.src = window._pwaIcon192;
-  }
-  // Show the banner after 4 seconds (don't interrupt first-open flow)
-  const dismissed = localStorage.getItem('cashhub_pwa_dismissed');
-  if(!dismissed){
-    setTimeout(showInstallBanner, 4000);
-  }
-});
-
-// Also fires when app is already installed
-window.addEventListener('appinstalled', function(){
-  hideInstallBanner();
-  localStorage.setItem('cashhub_pwa_dismissed','1');
-  showToast('CashHub PH installed! Open it from your home screen. 🎉');
-});
-
-function showInstallBanner(){
-  const banner = document.getElementById('pwa-install-banner');
-  if(banner) banner.style.display = 'block';
-}
-
-function hideInstallBanner(){
-  const banner = document.getElementById('pwa-install-banner');
-  if(banner) banner.style.display = 'none';
-}
-
-function dismissInstallBanner(){
-  hideInstallBanner();
-  localStorage.setItem('cashhub_pwa_dismissed','1');
-}
-
-async function triggerPwaInstall(){
-  if(!_pwaInstallEvent){ 
-    // Fallback: show manual instructions
-    showPwaManualInstructions();
-    return; 
-  }
-  _pwaInstallEvent.prompt();
-  const result = await _pwaInstallEvent.userChoice;
-  if(result.outcome === 'accepted'){
-    hideInstallBanner();
-    localStorage.setItem('cashhub_pwa_dismissed','1');
-  }
-  _pwaInstallEvent = null;
-}
-
-function showPwaManualInstructions(){
-  hideInstallBanner();
-  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const msg = isIos
-    ? 'To install:\n\n1. Tap the Share button (box with arrow) at the bottom of Safari\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" — done!'
-    : 'To install:\n\n1. Tap the 3-dot menu (⋮) in Chrome\n2. Tap "Add to Home screen" or "Install app"\n3. Tap "Install" — done!';
-  alert(msg);
-}
-
-function renderPwaSettingsStatus(){
-  const canvas = document.getElementById('settings-pwa-icon');
-  if(canvas && window._pwaIcon192){
-    const img = new Image();
-    img.onload = () => { const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0,44,44); };
-    img.src = window._pwaIcon192;
-  }
-  const statusEl = document.getElementById('pwa-install-status');
-  const installBtn = document.getElementById('settings-install-btn');
-  const isInstalled = window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true;
-  if(isInstalled){
-    if(statusEl) statusEl.textContent = '\u2713 Installed \u2014 running as app';
-    if(installBtn){ installBtn.textContent = 'Already Installed'; installBtn.disabled = true; installBtn.style.opacity = '0.5'; }
-  } else if(_pwaInstallEvent){
-    if(statusEl) statusEl.textContent = 'Ready to install on this device';
-    if(installBtn){ installBtn.disabled = false; installBtn.style.opacity = '1'; }
-  } else {
-    if(statusEl) statusEl.textContent = 'Use "Add to Home Screen" in your browser menu';
-    if(installBtn){ installBtn.textContent = 'How to Install'; installBtn.onclick = showPwaManualInstructions; }
-  }
-}
 </script>
 
 </body>
