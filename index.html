@@ -351,8 +351,6 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 
 /* ════════ TRIAL SYSTEM STYLES ════════ */
 .tf-main{font-weight:700;color:#1A1D23}
-.toggle-wrap{width:42px;height:24px;border-radius:12px;background:#E5E7EB;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0}
-.toggle-knob{width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
 .bm-tab{background:transparent;border:none;border-radius:7px;padding:7px 4px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;font-family:var(--font);transition:all 0.18s}
 .bm-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.08)}
 #trial-overlay{position:fixed;inset:0;background:rgba(10,10,20,0.97);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -543,13 +541,15 @@ function _injectManifest(){
 }
 function _registerSW(){
   if(!('serviceWorker' in navigator))return;
-  // Register the real /sw.js static file served by Vercel/GitHub Pages.
-  // The old blob: URL trick scoped the SW to blob: origin, not the app domain,
-  // so it silently failed to cache on stricter Android/Chrome versions —
-  // causing the home-screen PWA to show a blank screen on lower-end phones.
-  navigator.serviceWorker.register('/sw.js',{scope:'/'})
-    .then(function(r){console.log('[PWA] SW registered, scope:',r.scope);})
-    .catch(function(e){console.info('[PWA] SW skipped:',e.message);});
+  var t=document.getElementById('cashhub-sw');
+  if(!t){console.warn('[PWA] SW source tag missing');return;}
+  try{
+    var blob=new Blob([t.textContent],{type:'text/javascript'});
+    var url=URL.createObjectURL(blob);
+    navigator.serviceWorker.register(url)
+      .then(function(r){console.log('[PWA] SW registered');URL.revokeObjectURL(url);})
+      .catch(function(e){console.info('[PWA] SW skipped:',e.message);});
+  }catch(e){console.info('[PWA] SW error:',e.message);}
 }
 function _backTrap(){
   if(!window.history||!window.history.pushState)return;
@@ -1598,6 +1598,7 @@ document.addEventListener('DOMContentLoaded',function(){
       Clear All + Reset Balance
     </button>
   </div>
+
   <div class="section-label">Support &amp; Feedback</div>
   <div class="card" style="padding:16px">
     <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
@@ -1861,7 +1862,6 @@ const DEFAULT_DB = {
   transactions:[],
   deposits:[],
   balanceOverride:null,
-  syncQueue:[],
   settings:{
     cinFeeType:'fixed',cinFixedFee:15,cinPctFee:1,cinTiers:null,
     coutFeeType:'fixed',coutFixedFee:20,coutPctFee:1,coutTiers:null,
@@ -4279,8 +4279,6 @@ function clearAllData(){
   saveDB();updateDataSummary();renderDashboard();
   showToast('All data and balance cleared.');
 }
-// ════════════════════════════════════════
-// ════════════════════════════════════════
 function exportCSV(){
   const rows=[['Date','Type','Customer Name','Mobile','Amount','Fee','Ref No.','Status','Transaction ID','Signature','Merchant']];
   DB.transactions.forEach(t=>{
@@ -4392,6 +4390,7 @@ function startNewTx(type){
     </div>
   </div>
 </div>
+
 <!-- ═══════════ TRIAL EXPIRED OVERLAY ═══════════ -->
 <div id="expired-overlay">
   <div class="expired-box">
@@ -4402,22 +4401,8 @@ function startNewTx(type){
     <div class="expired-sub">Your 5-minute trial has ended. Records, Reports, and Settings remain accessible.</div>
     <div class="expired-note">
       📋 <strong>Your data is safe.</strong> All transactions are still accessible in Records &amp; Reports.<br><br>
-      🔑 To continue recording transactions, enter a new code below — or contact the developer to get one.
+      🔑 To continue recording transactions, enter a new trial code or contact the developer for a license.
     </div>
-    <!-- Contact buttons -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-      <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener"
-        style="display:flex;align-items:center;justify-content:center;gap:7px;background:#1877F2;color:#fff;text-decoration:none;border-radius:10px;padding:11px 8px;font-size:12px;font-weight:700;font-family:inherit">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-        Facebook
-      </a>
-      <a href="https://m.me/domz.mojar" target="_blank" rel="noopener"
-        style="display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#0099FF,#A033FF);color:#fff;text-decoration:none;border-radius:10px;padding:11px 8px;font-size:12px;font-weight:700;font-family:inherit">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.2)"/><path d="M12 4C7.6 4 4 7.3 4 11.4c0 2.2 1 4.2 2.7 5.6V20l3-1.7c.8.2 1.6.3 2.3.3 4.4 0 8-3.3 8-7.4S16.4 4 12 4zm.8 10l-2-2.2-4 2.2 4.4-4.7 2.1 2.2 3.9-2.2-4.4 4.7z" fill="#fff"/></svg>
-        Messenger
-      </a>
-    </div>
-    <div style="font-size:10px;color:#C0C7D0;margin-bottom:12px">— or enter a code you already have —</div>
     <div class="trial-input-wrap" style="margin-bottom:8px">
       <input class="trial-input" id="renew-code-input" type="text" placeholder="Enter new code" maxlength="20"
         oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')"
