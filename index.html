@@ -1834,6 +1834,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 <script>
 'use strict';
+const _BUILD_VER = 'cashhub-b1db4a93'; // auto-updated each save — drives SW cache version
 // ════════════════════════════════════════
 // TRIAL SYSTEM — Self-Modifying License
 // ════════════════════════════════════════
@@ -1849,7 +1850,7 @@ function getDurationForType(type){
   if(type==='1d') return 24*60*60*1000;
   return _TRIAL_DURATION_DEFAULT; // trial / default
 }
-const _DEV_CODE = 'DEV2025-CASHHUB-ZERO';        // Developer permanent access code
+// Dev code removed — validated server-side via Cloudflare Worker (not stored in client)
 const _WORKER_URL = 'https://cashhub-codes.storage1st15gb.workers.dev';
 // ────────────────────────────────────────
 
@@ -2124,34 +2125,44 @@ function handleCameraCapture(e){
 }
 
 function backToScan(){
-  // If we have extracted data, going back keeps the preview/state intact
-  // so the merchant can come back to it via the scan page
   document.getElementById('scan-step-extracted').style.display='none';
   document.getElementById('scan-step-signature').style.display='none';
   document.getElementById('scan-step-receipt').style.display='none';
   document.getElementById('scan-step-source').style.display='block';
   const activeOpt=document.querySelector('.scan-opt-btn.active');
   const activeMode=activeOpt?activeOpt.id.replace('opt-',''):'camera';
-  // For gallery: restore preview state (don't wipe it)
-  if(activeMode==='gallery'&&currentImageData){
-    document.getElementById('gallery-section').style.display='block';
-    document.getElementById('camera-section').style.display='none';
+
+  // If we already have scanned data, show a "resume" banner instead of
+  // resetting the scan — works for BOTH camera and gallery modes
+  if(currentExtracted && currentImageData){
+    // Show the correct section without wiping state
+    document.getElementById('gallery-section').style.display=activeMode==='gallery'?'block':'none';
+    document.getElementById('camera-section').style.display=activeMode==='camera'?'block':'none';
     document.getElementById('manual-section').style.display='none';
-    const previewImg=document.getElementById('preview-img');
-    if(previewImg){previewImg.src=currentImageData;previewImg.style.display='block';}
-    document.getElementById('upload-zone').style.display='none';
-    const gi=document.getElementById('scan-spinner-gallery');if(gi)gi.classList.remove('show');
-    // Show a "re-use scan" banner
-    const uz=document.getElementById('upload-zone');
-    const reScan=document.getElementById('gallery-rescan-bar');
-    if(!reScan&&uz){
-      const bar=document.createElement('div');
-      bar.id='gallery-rescan-bar';
-      bar.style.cssText='margin:10px 16px 0;padding:10px 14px;background:var(--orange-light);border:1.5px solid rgba(255,107,0,0.3);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px';
-      bar.innerHTML=`<span style="font-size:12px;font-weight:600;color:var(--orange)">Receipt already scanned — tap to review results</span><button onclick="showExtractedDetails(currentExtracted)" style="font-size:12px;font-weight:700;color:#fff;background:var(--orange);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:var(--font)">Review →</button>`;
-      uz.parentNode.insertBefore(bar,uz.nextSibling);
+
+    // For gallery: restore the preview image
+    if(activeMode==='gallery'){
+      const previewImg=document.getElementById('preview-img');
+      if(previewImg){previewImg.src=currentImageData;previewImg.style.display='block';}
+      document.getElementById('upload-zone').style.display='none';
     }
-  }else{
+
+    // Remove any existing rescan bar first
+    const existing=document.getElementById('scan-rescan-bar');
+    if(existing)existing.remove();
+
+    // Show "receipt already scanned" banner with a Review button
+    const anchor=document.getElementById(activeMode==='gallery'?'gallery-section':'camera-section');
+    if(anchor){
+      const bar=document.createElement('div');
+      bar.id='scan-rescan-bar';
+      bar.style.cssText='margin:10px 16px 0;padding:12px 14px;background:var(--orange-light);border:1.5px solid rgba(255,107,0,0.3);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px';
+      bar.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📋</span><div><div style="font-size:12px;font-weight:700;color:var(--orange)">Receipt already scanned</div><div style="font-size:11px;color:var(--text3);margin-top:1px">Choose Cash-In or Cash-Out above, then tap Review</div></div></div>'
+        +'<button onclick="showExtractedDetails(currentExtracted)" style="font-size:12px;font-weight:700;color:#fff;background:var(--orange);border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-family:var(--font);white-space:nowrap">Review →</button>';
+      anchor.after(bar);
+    }
+  } else {
+    // No scan data yet — normal reset
     setScanOpt(activeMode);
   }
 }
@@ -3158,6 +3169,7 @@ function printReceipt(){
 
 function newTransaction(){
   currentTx=null;currentExtracted=null;currentImageData=null;currentImageSource=null;currentFeeMode='included';currentType=null;_scanTypeSelected=false;
+  const rb=document.getElementById('scan-rescan-bar');if(rb)rb.remove();
   const aea=document.getElementById('ext-actual-amount');if(aea)aea.value='';
   const cnEl=document.getElementById('ext-customer-name');if(cnEl)cnEl.value='';
   const imgWrap=document.getElementById('receipt-img-preview-wrap');if(imgWrap)imgWrap.style.display='none';
@@ -4451,15 +4463,6 @@ function initTrialSystem(){
   // Activated — hide activation overlay
   document.getElementById('trial-overlay').style.display = 'none';
 
-  // Check if developer code
-  if(_CH_.k === _DEV_CODE){
-    _trialDevMode = true;
-    document.getElementById('trial-topbar').classList.remove('show');
-    document.getElementById('dev-mode-bar').classList.add('show');
-    applyTabStates(false);
-    return;
-  }
-
   if(trialIsExpired()){
     // Trial is already expired — lock tabs immediately
     applyTabStates(true);
@@ -4564,19 +4567,8 @@ async function activateTrial(){
 
   if(!code){ errEl.textContent='Please enter your trial code.'; return; }
 
-  // Check developer code (local, no server needed)
-  if(code === _DEV_CODE){
-    _trialDevMode = true;
-    localStorage.setItem('cashhub_trial', JSON.stringify({code, startTime: Date.now(), dev: true}));
-    document.getElementById('trial-overlay').style.display = 'none';
-    document.getElementById('trial-topbar').classList.remove('show');
-    document.getElementById('dev-mode-bar').classList.add('show');
-    applyTabStates(false);
-    showToast('Developer access granted ✓');
-    return;
-  }
-
-  // Call the Cloudflare Worker to validate and redeem the code
+  // All codes (including dev/lifetime) validated via Cloudflare Worker
+  // No codes are stored in the client source
   errEl.textContent = '';
   if(btn){ btn.disabled = true; btn.textContent = 'Checking code…'; }
 
@@ -4630,16 +4622,6 @@ async function renewTrial(){
   const code = (input.value||'').trim().toUpperCase();
 
   if(!code){ errEl.textContent='Please enter a code.'; return; }
-
-  if(code === _DEV_CODE){
-    _trialDevMode = true;
-    localStorage.setItem('cashhub_trial', JSON.stringify({code, startTime: Date.now(), dev: true}));
-    document.getElementById('expired-overlay').classList.remove('show');
-    document.getElementById('dev-mode-bar').classList.add('show');
-    applyTabStates(false);
-    showToast('Developer access granted ✓');
-    return;
-  }
 
   errEl.textContent = '';
   if(btn){ btn.disabled = true; btn.textContent = 'Checking code…'; }
@@ -4773,42 +4755,92 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <!-- SW source: type="text/plain" so browser ignores it as JS; read via textContent -->
 <script id="cashhub-sw" type="text/plain">
-var CACHE='cashhub-ph-v1';
-self.addEventListener('install',function(e){
+// Cache version is embedded at build time — changes automatically when file is updated
+// This ensures installed PWA users always get the latest version
+var CACHE = 'cashhub-b1db4a93';
+
+self.addEventListener('install', function(e){
+  // Skip waiting immediately so new SW activates without needing a second open
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE).then(function(c){
       return c.addAll([location.href]).catch(function(){});
-    }).then(function(){return self.skipWaiting();})
+    })
   );
 });
-self.addEventListener('activate',function(e){
+
+self.addEventListener('activate', function(e){
+  // Delete ALL old caches that don't match current version
   e.waitUntil(
-    caches.keys().then(function(ks){
-      return Promise.all(ks.filter(function(k){return k!==CACHE;}).map(function(k){return caches.delete(k);}));
-    }).then(function(){return self.clients.claim();})
+    caches.keys().then(function(keys){
+      return Promise.all(
+        keys.filter(function(k){ return k !== CACHE; })
+            .map(function(k){ return caches.delete(k); })
+      );
+    }).then(function(){
+      // Take control of all open tabs immediately
+      return self.clients.claim();
+    }).then(function(){
+      // Notify all open tabs that a new version is available
+      return self.clients.matchAll({type:'window'}).then(function(clients){
+        clients.forEach(function(c){
+          c.postMessage({type:'SW_UPDATED', version: CACHE});
+        });
+      });
+    })
   );
 });
-self.addEventListener('fetch',function(e){
-  if(e.request.method!=='GET')return;
-  if(e.request.mode==='navigate'){
-    e.respondWith(fetch(e.request).then(function(r){
-      var cl=r.clone();
-      caches.open(CACHE).then(function(c){c.put(e.request,cl);});
-      return r;
-    }).catch(function(){
-      return caches.match(e.request).then(function(r){
-        return r||new Response('You are offline. Please reconnect.',{status:503,headers:{'Content-Type':'text/plain'}});
-      });
-    }));
-  }else{
-    e.respondWith(caches.match(e.request).then(function(r){
-      return r||fetch(e.request).catch(function(){return new Response('',{status:408});});
-    }));
+
+self.addEventListener('fetch', function(e){
+  if(e.request.method !== 'GET') return;
+  if(e.request.mode === 'navigate'){
+    // Network-first for navigation: always try to get fresh HTML
+    // Falls back to cache if offline
+    e.respondWith(
+      fetch(e.request).then(function(r){
+        var cl = r.clone();
+        caches.open(CACHE).then(function(c){ c.put(e.request, cl); });
+        return r;
+      }).catch(function(){
+        return caches.match(e.request).then(function(r){
+          return r || new Response(
+            '<h2 style="font-family:sans-serif;text-align:center;margin-top:40px">You are offline.<br><small>Open CashHub when connected to get the latest version.</small></h2>',
+            {status:503, headers:{'Content-Type':'text/html'}}
+          );
+        });
+      })
+    );
+  } else {
+    // Cache-first for assets
+    e.respondWith(
+      caches.match(e.request).then(function(r){
+        return r || fetch(e.request).catch(function(){
+          return new Response('', {status:408});
+        });
+      })
+    );
   }
 });
 </script>
 
 <script>
+// ── PWA UPDATE LISTENER ─────────────────────────────────────────────────
+// When the SW activates a new version, it messages all open tabs
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', function(e){
+    if(e.data && e.data.type === 'SW_UPDATED'){
+      // Show a non-intrusive update toast after 1.5s
+      setTimeout(function(){
+        var toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1A1D23;color:#fff;padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;font-family:inherit;z-index:99999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.3);white-space:nowrap;max-width:calc(100% - 40px)';
+        toast.innerHTML = '<span style="font-size:16px">🆕</span> CashHub updated! <button onclick="location.reload()" style="background:#FF6B00;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:12px;padding:5px 12px;cursor:pointer;font-family:inherit;margin-left:6px">Reload</button><button onclick="this.parentNode.remove()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;padding:0 0 0 8px;line-height:1">&times;</button>';
+        document.body.appendChild(toast);
+        setTimeout(function(){ if(toast.parentNode) toast.remove(); }, 12000);
+      }, 1500);
+    }
+  });
+}
+
 // ── PWA INSTALL PROMPT ────────────────────────────────────────────────────
 var _pwaEvt = null;
 
