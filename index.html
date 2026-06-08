@@ -474,20 +474,20 @@ function _makePwaIcon(sz, maskable){
     var safe=sz*0.30; // radius of safe zone
     var cx=sz*0.5, cy=sz*0.5;
 
-    // Subtle inner glow circle
-    x.beginPath();x.arc(cx,cy,safe*0.92,0,Math.PI*2);
-    x.fillStyle='rgba(255,255,255,0.13)';x.fill();
+    // Solid white circle — ₱ drawn in orange on top so it's clearly visible
+    x.beginPath();x.arc(cx,cy,safe*0.88,0,Math.PI*2);
+    x.fillStyle='#fff';x.fill();
 
-    // ₱ symbol — sized to fit well inside safe zone
-    x.fillStyle='#fff';
+    // ₱ symbol in orange so it contrasts against the white circle
+    x.fillStyle='#FF6B00';
     x.font='bold '+Math.round(sz*0.28)+'px -apple-system,sans-serif';
     x.textAlign='center';x.textBaseline='middle';
-    x.fillText('₱',cx,cy-sz*0.03);
+    x.fillText('₱',cx,cy-sz*0.02);
 
-    // "CashHub" wordmark below peso sign, still inside safe zone
+    // "CashHub" wordmark below the circle, in white (on orange background)
     x.font='bold '+Math.round(sz*0.075)+'px -apple-system,sans-serif';
-    x.fillStyle='rgba(255,255,255,0.88)';
-    x.fillText('CashHub',cx,cy+sz*0.17);
+    x.fillStyle='rgba(255,255,255,0.92)';
+    x.fillText('CashHub',cx,cy+sz*0.22);
 
   } else {
     // ANY: rounded rect with visible background shape (for square icon contexts)
@@ -501,9 +501,9 @@ function _makePwaIcon(sz, maskable){
     x.fillStyle=g2;x.fill();
 
     x.beginPath();x.arc(sz*.5,sz*.45,sz*.26,0,Math.PI*2);
-    x.fillStyle='rgba(255,255,255,0.15)';x.fill();
+    x.fillStyle='#fff';x.fill();
 
-    x.fillStyle='#fff';
+    x.fillStyle='#FF6B00';
     x.font='bold '+Math.round(sz*.32)+'px -apple-system,sans-serif';
     x.textAlign='center';x.textBaseline='middle';
     x.fillText('₱',sz*.5,sz*.43);
@@ -4599,13 +4599,21 @@ async function activateTrial(){
     // Valid! Save activation to localStorage
     const startTime = Date.now();
     const licType = data.type || 'trial';
+    const isDev = licType === 'dev' || licType === 'lifetime' || licType === 'unlimited';
     _trialDuration = getDurationForType(licType);
-    localStorage.setItem('cashhub_trial', JSON.stringify({code, startTime, type: licType}));
+    localStorage.setItem('cashhub_trial', JSON.stringify({
+      code, startTime, type: licType, dev: isDev
+    }));
     _CH_.s = startTime;
     _CH_.k = code;
     document.getElementById('trial-overlay').style.display = 'none';
     applyTabStates(false);
-    if(_trialDuration === Infinity){
+    if(isDev){
+      _trialDevMode = true;
+      document.getElementById('trial-topbar').classList.remove('show');
+      document.getElementById('dev-mode-bar').classList.add('show');
+      showToast('Developer / Lifetime access activated! 🎉');
+    } else if(_trialDuration === Infinity){
       document.getElementById('trial-topbar').classList.remove('show');
       showToast('Lifetime license activated! 🎉');
     } else {
@@ -4652,13 +4660,19 @@ async function renewTrial(){
 
     const startTime = Date.now();
     const licType = data.type || 'trial';
+    const isDev = licType === 'dev' || licType === 'lifetime' || licType === 'unlimited';
     _trialDuration = getDurationForType(licType);
-    localStorage.setItem('cashhub_trial', JSON.stringify({code, startTime, type: licType}));
+    localStorage.setItem('cashhub_trial', JSON.stringify({code, startTime, type: licType, dev: isDev}));
     _CH_.s = startTime;
     _CH_.k = code;
     document.getElementById('expired-overlay').classList.remove('show');
     applyTabStates(false);
-    if(_trialDuration === Infinity){
+    if(isDev){
+      _trialDevMode = true;
+      document.getElementById('trial-topbar').classList.remove('show');
+      document.getElementById('dev-mode-bar').classList.add('show');
+      showToast('Developer / Lifetime access activated! 🎉');
+    } else if(_trialDuration === Infinity){
       document.getElementById('trial-topbar').classList.remove('show');
       showToast('Lifetime license activated! 🎉');
     } else {
