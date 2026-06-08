@@ -713,9 +713,23 @@ document.addEventListener('DOMContentLoaded',function(){
         </div>
       </div>
       <div class="intro-card" style="background:#1A1D23;border-radius:28px 28px 0 0">
-        <div class="intro-label" style="color:#FF9640">You're all set!</div>
-        <div class="intro-title" style="color:#fff">Ready to record your first transaction 🎉</div>
-        <div class="intro-desc" style="color:#9CA3AF">Start by adding your initial GCash capital in Settings, then tap the <strong style="color:#FF6B00">+</strong> button to record your first transaction.</div>
+        <div class="intro-label" style="color:#FF9640">Almost there!</div>
+        <div class="intro-title" style="color:#fff">Enter your trial code to get started 🎉</div>
+        <div class="intro-desc" style="color:#9CA3AF;margin-bottom:14px">Enter the code you received to activate your trial. Need one? Message the developer.</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <input id="intro-code-input" type="text" placeholder="e.g. TRIAL-A1B2C"
+            maxlength="20"
+            oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')"
+            onkeydown="if(event.key==='Enter')introActivateTrial()"
+            style="width:100%;background:#2D3748;border:1.5px solid rgba(255,107,0,0.4);border-radius:10px;padding:13px 14px;font-size:15px;font-weight:600;color:#fff;font-family:var(--font);outline:none;letter-spacing:1px;-webkit-appearance:none"
+            onfocus="this.style.borderColor='#FF6B00'" onblur="this.style.borderColor='rgba(255,107,0,0.4)'">
+          <div id="intro-code-err" style="font-size:12px;color:#FF6B00;min-height:16px;text-align:center"></div>
+          <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener"
+            style="display:flex;align-items:center;justify-content:center;gap:7px;background:#1877F2;color:#fff;text-decoration:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;font-family:var(--font)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Message me on Facebook for a code
+          </a>
+        </div>
       </div>
     </div>
 
@@ -1589,6 +1603,23 @@ document.addEventListener('DOMContentLoaded',function(){
     </button>
   </div>
 
+
+  <div class="section-label">Support &amp; Feedback</div>
+  <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:13px;color:var(--text2);line-height:1.55">
+      Questions, feedback, or need a new license code? Message the developer directly.
+    </div>
+    <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener"
+      style="display:flex;align-items:center;justify-content:center;gap:8px;background:#1877F2;color:#fff;text-decoration:none;border-radius:var(--r2);padding:13px;font-size:14px;font-weight:700;font-family:var(--font)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+      Message on Facebook
+    </a>
+    <a href="https://m.me/domz.mojar" target="_blank" rel="noopener"
+      style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#0099FF,#A033FF);color:#fff;text-decoration:none;border-radius:var(--r2);padding:13px;font-size:14px;font-weight:700;font-family:var(--font)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.2)"/><path d="M12 4C7.6 4 4 7.3 4 11.4c0 2.2 1 4.2 2.7 5.6V20l3-1.7c.8.2 1.6.3 2.3.3 4.4 0 8-3.3 8-7.4S16.4 4 12 4zm.8 10l-2-2.2-4 2.2 4.4-4.7 2.1 2.2 3.9-2.2-4.4 4.7z" fill="#fff"/></svg>
+      Chat on Messenger
+    </a>
+  </div>
 
   <div class="section-label">App Installation</div>
   <div class="card" style="padding:16px">
@@ -4431,11 +4462,13 @@ function startNewTx(type){
 
 let _trialDevMode = false;
 let _trialCountdownInterval = null;
+let _revalidateInterval = null;
+const _REVALIDATE_EVERY = 30 * 60 * 1000; // every 30 minutes while app is open
 
 function trialIsExpired(){
   if(_trialDevMode) return false;
   if(_CH_.s === 0) return false;
-  if(_trialDuration === Infinity) return false; // lifetime license
+  if(_trialDuration === Infinity) return false;
   return (Date.now() - _CH_.s) >= _trialDuration;
 }
 
@@ -4445,8 +4478,97 @@ function trialIsActive(){
   return _CH_.s > 0 && !trialIsExpired();
 }
 
+// ── APPLY REVALIDATED STATE ──────────────────────────────────────────────────
+// Called after a successful Worker revalidation response.
+// Updates localStorage + live state without wiping startTime.
+function _applyRevalidatedState(data){
+  try {
+    const saved = JSON.parse(localStorage.getItem('cashhub_trial') || '{}');
+    const newType = data.type || saved.type || 'trial';
+    const isDev   = data.dev === true || newType === 'dev';
+
+    // Update stored type (may have changed in KV)
+    saved.type = newType;
+    saved.dev  = isDev;
+    localStorage.setItem('cashhub_trial', JSON.stringify(saved));
+
+    // Update live duration
+    _trialDuration = getDurationForType(newType);
+    _trialDevMode  = isDev;
+
+    if(isDev){
+      document.getElementById('dev-mode-bar').classList.add('show');
+      document.getElementById('trial-topbar').classList.remove('show');
+      if(_trialCountdownInterval){ clearInterval(_trialCountdownInterval); _trialCountdownInterval = null; }
+    } else if(_trialDuration === Infinity){
+      document.getElementById('trial-topbar').classList.remove('show');
+      if(_trialCountdownInterval){ clearInterval(_trialCountdownInterval); _trialCountdownInterval = null; }
+    } else {
+      // Restart countdown in case duration changed
+      document.getElementById('trial-topbar').classList.add('show');
+      startCountdown();
+    }
+  } catch(e){}
+}
+
+// ── REVALIDATE AGAINST WORKER ────────────────────────────────────────────────
+// Silently re-checks the stored code. On success: update type/dev.
+// On revoked: immediately expire. On network error: do nothing (offline grace).
+async function revalidateLicense(){
+  try {
+    const saved = JSON.parse(localStorage.getItem('cashhub_trial') || 'null');
+    if(!saved || !saved.code) return; // not activated
+
+    const res = await fetch(_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'revalidate', code: saved.code }),
+      signal: AbortSignal.timeout(8000) // 8s timeout
+    });
+
+    if(!res.ok) return; // server error — offline grace, do nothing
+
+    const data = await res.json();
+
+    if(data.revoked === true || data.valid === false){
+      // Code was deleted/revoked in KV — lock the app immediately
+      console.warn('[CashHub] License revoked by server.');
+      localStorage.removeItem('cashhub_trial');
+      _CH_.s = 0; _CH_.k = '';
+      _trialDevMode = false;
+      _trialDuration = _TRIAL_DURATION_DEFAULT;
+      if(_trialCountdownInterval){ clearInterval(_trialCountdownInterval); _trialCountdownInterval = null; }
+      if(_revalidateInterval){ clearInterval(_revalidateInterval); _revalidateInterval = null; }
+      applyTabStates(true);
+      document.getElementById('trial-topbar').classList.remove('show');
+      document.getElementById('dev-mode-bar').classList.remove('show');
+      // Show expired overlay with revoked message
+      const sub = document.querySelector('.expired-sub');
+      if(sub) sub.textContent = 'Your license has been revoked. Please contact the developer.';
+      setTimeout(()=>{ document.getElementById('expired-overlay').classList.add('show'); }, 200);
+      return;
+    }
+
+    if(data.valid === true){
+      _applyRevalidatedState(data);
+    }
+    // If Worker returns neither valid nor revoked, do nothing (offline grace)
+
+  } catch(e){
+    // Network error or timeout — silent offline grace, do nothing
+  }
+}
+
+// ── START PERIODIC REVALIDATION ──────────────────────────────────────────────
+function startRevalidation(){
+  if(_revalidateInterval) clearInterval(_revalidateInterval);
+  // First check after 3s (let app finish rendering), then every 30 min
+  setTimeout(revalidateLicense, 3000);
+  _revalidateInterval = setInterval(revalidateLicense, _REVALIDATE_EVERY);
+}
+
 function initTrialSystem(){
-  // Restore trial state from localStorage if sentinel is empty
+  // Restore trial state from localStorage
   if(_CH_.s === 0){
     try {
       const saved = localStorage.getItem('cashhub_trial');
@@ -4471,16 +4593,19 @@ function initTrialSystem(){
   document.getElementById('trial-overlay').style.display = 'none';
 
   if(trialIsExpired()){
-    // Trial is already expired — lock tabs immediately
     applyTabStates(true);
     document.getElementById('trial-topbar').classList.remove('show');
-    // Show expired overlay after a brief delay so the page renders
     setTimeout(()=>{ document.getElementById('expired-overlay').classList.add('show'); }, 300);
   } else {
-    // Trial still active
     applyTabStates(false);
-    document.getElementById('trial-topbar').classList.add('show');
-    startCountdown();
+    if(_trialDevMode){
+      document.getElementById('trial-topbar').classList.remove('show');
+    } else {
+      document.getElementById('trial-topbar').classList.add('show');
+      startCountdown();
+    }
+    // Start live revalidation against Worker
+    startRevalidation();
   }
 }
 
@@ -4599,7 +4724,7 @@ async function activateTrial(){
     // Valid! Save activation to localStorage
     const startTime = Date.now();
     const licType = data.type || 'trial';
-    const isDev = licType === 'dev' || licType === 'lifetime' || licType === 'unlimited';
+    const isDev = data.dev === true || licType === 'dev';
     _trialDuration = getDurationForType(licType);
     localStorage.setItem('cashhub_trial', JSON.stringify({
       code, startTime, type: licType, dev: isDev
@@ -4612,7 +4737,7 @@ async function activateTrial(){
       _trialDevMode = true;
       document.getElementById('trial-topbar').classList.remove('show');
       document.getElementById('dev-mode-bar').classList.add('show');
-      showToast('Developer / Lifetime access activated! 🎉');
+      showToast('Developer access activated! 🛠️');
     } else if(_trialDuration === Infinity){
       document.getElementById('trial-topbar').classList.remove('show');
       showToast('Lifetime license activated! 🎉');
@@ -4621,6 +4746,7 @@ async function activateTrial(){
       startCountdown();
       showToast('Trial activated! ✓');
     }
+    startRevalidation();
     setTimeout(()=>startIntro(), 800);
 
   } catch(e) {
@@ -4660,7 +4786,7 @@ async function renewTrial(){
 
     const startTime = Date.now();
     const licType = data.type || 'trial';
-    const isDev = licType === 'dev' || licType === 'lifetime' || licType === 'unlimited';
+    const isDev = data.dev === true || licType === 'dev';
     _trialDuration = getDurationForType(licType);
     localStorage.setItem('cashhub_trial', JSON.stringify({code, startTime, type: licType, dev: isDev}));
     _CH_.s = startTime;
@@ -4671,7 +4797,7 @@ async function renewTrial(){
       _trialDevMode = true;
       document.getElementById('trial-topbar').classList.remove('show');
       document.getElementById('dev-mode-bar').classList.add('show');
-      showToast('Developer / Lifetime access activated! 🎉');
+      showToast('Developer access activated! 🛠️');
     } else if(_trialDuration === Infinity){
       document.getElementById('trial-topbar').classList.remove('show');
       showToast('Lifetime license activated! 🎉');
@@ -4680,6 +4806,7 @@ async function renewTrial(){
       startCountdown();
       showToast('Code activated! ✓');
     }
+    startRevalidation();
 
   } catch(e) {
     errEl.textContent = 'Connection error: ' + (e && e.message ? e.message : String(e));
@@ -4721,7 +4848,7 @@ function renderIntroStep(){
   ).join('');
 
   // Buttons
-  nextBtn.textContent = isLast ? 'Get Started!' : 'Next →';
+  nextBtn.textContent = isLast ? 'Activate & Start →' : 'Next →';
   nextBtn.style.background = isLast ? '#00B67A' : '#FF6B00';
   nextBtn.style.boxShadow = isLast ? '0 4px 14px rgba(0,182,122,0.4)' : '0 4px 14px rgba(255,107,0,0.35)';
   prevBtn.style.display = isFirst ? 'none' : 'inline-block';
@@ -4734,9 +4861,60 @@ function renderIntroStep(){
 }
 
 function introNext(){
-  if(_introStep >= _INTRO_TOTAL - 1){ skipIntro(); return; }
+  if(_introStep >= _INTRO_TOTAL - 1){ introActivateTrial(); return; }
   _introStep++;
   renderIntroStep();
+}
+
+async function introActivateTrial(){
+  // Copy the code from the intro input into the trial-overlay input, then activate
+  const introInput = document.getElementById('intro-code-input');
+  const errEl = document.getElementById('intro-code-err');
+  const code = (introInput ? introInput.value : '').trim().toUpperCase();
+
+  if(!code){
+    if(errEl) errEl.textContent = 'Please enter your trial code first.';
+    if(introInput) introInput.focus();
+    return;
+  }
+  if(errEl) errEl.textContent = '';
+
+  const nextBtn = document.getElementById('intro-next-btn');
+  if(nextBtn){ nextBtn.disabled = true; nextBtn.textContent = 'Checking…'; }
+
+  try {
+    const res = await fetch(_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+
+    if(!data.success){
+      if(errEl) errEl.textContent = data.message === 'Code already used'
+        ? 'This code has already been used.'
+        : 'Invalid code. Please check and try again.';
+      if(nextBtn){ nextBtn.disabled = false; nextBtn.textContent = 'Get Started!'; }
+      if(introInput) introInput.classList.add('error');
+      setTimeout(()=>{ if(introInput) introInput.classList.remove('error'); }, 500);
+      return;
+    }
+
+    // Valid — save and proceed
+    const startTime = Date.now();
+    const type = data.type || 'trial';
+    const dev = data.dev || false;
+    localStorage.setItem('cashhub_trial', JSON.stringify({ startTime, code, type, dev }));
+    if(data.trialId) localStorage.setItem('cashhub_trial_id', data.trialId);
+
+    skipIntro();
+    // Reinit trial system with newly saved state
+    location.reload();
+
+  } catch(e) {
+    if(errEl) errEl.textContent = 'Network error. Please check your connection.';
+    if(nextBtn){ nextBtn.disabled = false; nextBtn.textContent = 'Get Started!'; }
+  }
 }
 
 function introPrev(){
