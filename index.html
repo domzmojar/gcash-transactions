@@ -713,22 +713,19 @@ document.addEventListener('DOMContentLoaded',function(){
         </div>
       </div>
       <div class="intro-card" style="background:#1A1D23;border-radius:28px 28px 0 0">
-        <div class="intro-label" style="color:#FF9640">Almost there!</div>
-        <div class="intro-title" style="color:#fff">Enter your trial code to get started 🎉</div>
-        <div class="intro-desc" style="color:#9CA3AF;margin-bottom:14px">Enter the code you received to activate your trial. Need one? Message the developer.</div>
+        <div class="intro-label" style="color:#FF9640">You're all set!</div>
+        <div class="intro-title" style="color:#fff">Ready to track every peso 🎉</div>
+        <div class="intro-desc" style="color:#9CA3AF;margin-bottom:14px">Your trial is active and ready. Start recording your GCash cash-in and cash-out transactions right away — no setup needed.</div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          <input id="intro-code-input" type="text" placeholder="e.g. TRIAL-A1B2C"
-            maxlength="20"
-            oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')"
-            onkeydown="if(event.key==='Enter')introActivateTrial()"
-            style="width:100%;background:#2D3748;border:1.5px solid rgba(255,107,0,0.4);border-radius:10px;padding:13px 14px;font-size:15px;font-weight:600;color:#fff;font-family:var(--font);outline:none;letter-spacing:1px;-webkit-appearance:none"
-            onfocus="this.style.borderColor='#FF6B00'" onblur="this.style.borderColor='rgba(255,107,0,0.4)'">
-          <div id="intro-code-err" style="font-size:12px;color:#FF6B00;min-height:16px;text-align:center"></div>
-          <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener"
-            style="display:flex;align-items:center;justify-content:center;gap:7px;background:#1877F2;color:#fff;text-decoration:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;font-family:var(--font)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-            Message me on Facebook for a code
-          </a>
+          <div style="display:flex;align-items:center;gap:12px;background:#2D3748;border-radius:12px;padding:14px">
+            <div style="width:38px;height:38px;border-radius:50%;background:rgba(0,182,122,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00B67A" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#fff">Trial Activated</div>
+              <div style="font-size:12px;color:#9CA3AF;margin-top:3px">Your code has been verified and is active</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -4848,7 +4845,7 @@ function renderIntroStep(){
   ).join('');
 
   // Buttons
-  nextBtn.textContent = isLast ? 'Activate & Start →' : 'Next →';
+  nextBtn.textContent = isLast ? 'Get Started! →' : 'Next →';
   nextBtn.style.background = isLast ? '#00B67A' : '#FF6B00';
   nextBtn.style.boxShadow = isLast ? '0 4px 14px rgba(0,182,122,0.4)' : '0 4px 14px rgba(255,107,0,0.35)';
   prevBtn.style.display = isFirst ? 'none' : 'inline-block';
@@ -4866,55 +4863,9 @@ function introNext(){
   renderIntroStep();
 }
 
-async function introActivateTrial(){
-  // Copy the code from the intro input into the trial-overlay input, then activate
-  const introInput = document.getElementById('intro-code-input');
-  const errEl = document.getElementById('intro-code-err');
-  const code = (introInput ? introInput.value : '').trim().toUpperCase();
-
-  if(!code){
-    if(errEl) errEl.textContent = 'Please enter your trial code first.';
-    if(introInput) introInput.focus();
-    return;
-  }
-  if(errEl) errEl.textContent = '';
-
-  const nextBtn = document.getElementById('intro-next-btn');
-  if(nextBtn){ nextBtn.disabled = true; nextBtn.textContent = 'Checking…'; }
-
-  try {
-    const res = await fetch(_WORKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
-    });
-    const data = await res.json();
-
-    if(!data.success){
-      if(errEl) errEl.textContent = data.message === 'Code already used'
-        ? 'This code has already been used.'
-        : 'Invalid code. Please check and try again.';
-      if(nextBtn){ nextBtn.disabled = false; nextBtn.textContent = 'Get Started!'; }
-      if(introInput) introInput.classList.add('error');
-      setTimeout(()=>{ if(introInput) introInput.classList.remove('error'); }, 500);
-      return;
-    }
-
-    // Valid — save and proceed
-    const startTime = Date.now();
-    const type = data.type || 'trial';
-    const dev = data.dev || false;
-    localStorage.setItem('cashhub_trial', JSON.stringify({ startTime, code, type, dev }));
-    if(data.trialId) localStorage.setItem('cashhub_trial_id', data.trialId);
-
-    skipIntro();
-    // Reinit trial system with newly saved state
-    location.reload();
-
-  } catch(e) {
-    if(errEl) errEl.textContent = 'Network error. Please check your connection.';
-    if(nextBtn){ nextBtn.disabled = false; nextBtn.textContent = 'Get Started!'; }
-  }
+function introActivateTrial(){
+  // Trial is already activated before the intro starts — just close the intro
+  skipIntro();
 }
 
 function introPrev(){
