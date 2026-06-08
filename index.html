@@ -1868,7 +1868,7 @@ const DEFAULT_DB = {
   }
 };
 let DB = JSON.parse(JSON.stringify(DEFAULT_DB));
-try{const r=localStorage.getItem('cashhub_ph_v3');if(r){const p=JSON.parse(r);DB={...DEFAULT_DB,...p,settings:{...DEFAULT_DB.settings,...(p.settings||{})},deposits:p.deposits||[],balanceOverride:p.balanceOverride!==undefined?p.balanceOverride:null,balanceOverrideTime:p.balanceOverrideTime||null}; }}catch(e){}
+try{const r=localStorage.getItem('cashhub_ph_v3');if(r){const p=JSON.parse(r);DB={...DEFAULT_DB,...p,transactions:Array.isArray(p.transactions)?p.transactions:[],settings:{...DEFAULT_DB.settings,...(p.settings||{})},deposits:p.deposits||[],balanceOverride:p.balanceOverride!==undefined?p.balanceOverride:null,balanceOverrideTime:p.balanceOverrideTime||null}; }}catch(e){}
 function saveDB(){try{localStorage.setItem('cashhub_ph_v3',JSON.stringify(DB));}catch(e){showToast('Storage error: '+e.message);}}
 function saveSetting(k,v){DB.settings[k]=v;saveDB();}
 
@@ -1995,9 +1995,11 @@ function renderDashboard(){
   // Total deposits
   const totalDeposit=(DB.deposits||[]).reduce((a,d)=>a+(parseFloat(d.amount)||0),0);
 
-  // GCash balance = deposits + cashout gcash received - cashin gcash sent + fees
-  // Cash-Out: customer sends GCash to merchant → merchant balance INCREASES
-  // Cash-In:  merchant sends GCash to customer → merchant balance DECREASES
+  // GCash balance = deposits + cashout gcash received - cashin gcash sent
+  // Cash-Out: customer sends GCash to merchant → merchant GCash INCREASES by full gcashAmt
+  //   Fee is already embedded inside gcashAmt (for "included" mode) — do NOT add fee again
+  // Cash-In:  merchant sends GCash to customer → merchant GCash DECREASES by gcashAmt
+  //   Fee is collected in cash, NOT in GCash — do NOT add fee to GCash balance
   const allCout=allTx.filter(t=>t.type==='Cash-Out');
   const allCin=allTx.filter(t=>t.type==='Cash-In');
   const totalCoutGcash=allCout.reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
@@ -2008,10 +2010,9 @@ function renderDashboard(){
     const txSince=allTx.filter(t=>new Date(t.date).getTime()>=overrideTime);
     const coutSince=txSince.filter(t=>t.type==='Cash-Out').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
     const cinSince=txSince.filter(t=>t.type==='Cash-In').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
-    const feesSince=txSince.reduce((a,t)=>a+(parseFloat(t.fee)||0),0);
-    gcashBalance=DB.balanceOverride+coutSince-cinSince+feesSince;
+    gcashBalance=DB.balanceOverride+coutSince-cinSince;
   } else {
-    gcashBalance=totalDeposit+totalCoutGcash-totalCinGcash+totalProfit;
+    gcashBalance=totalDeposit+totalCoutGcash-totalCinGcash;
   }
 
   const cinTx=todayTx.filter(t=>t.type==='Cash-In');
@@ -3272,20 +3273,32 @@ function updateBalanceModalSummary(){
   // Recompute balance for display inside modal
   const allTx=DB.transactions||[];
   const totalDeposit=(DB.deposits||[]).reduce((a,d)=>a+(parseFloat(d.amount)||0),0);
-  const totalProfit=allTx.reduce((a,t)=>a+(parseFloat(t.fee)||0),0);
   let gcashBalance;
   if(DB.balanceOverride!==null&&DB.balanceOverride!==undefined){
     const overrideTime=DB.balanceOverrideTime||0;
     const txSince=allTx.filter(t=>new Date(t.date).getTime()>=overrideTime);
     const coutSince=txSince.filter(t=>t.type==='Cash-Out').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
     const cinSince=txSince.filter(t=>t.type==='Cash-In').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
-    const feesSince=txSince.reduce((a,t)=>a+(parseFloat(t.fee)||0),0);
-    gcashBalance=DB.balanceOverride+coutSince-cinSince+feesSince;
+    gcashBalance=DB.balanceOverride+coutSince-cinSince;
   } else {
     const allCout=allTx.filter(t=>t.type==='Cash-Out').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
     const allCin=allTx.filter(t=>t.type==='Cash-In').reduce((a,t)=>a+(parseFloat(t.gcashAmt||t.gcashSent||t.amount)||0),0);
-    gcashBalance=totalDeposit+allCout-allCin+totalProfit;
+    gcashBalance=totalDeposit+allCout-allCin;
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const amtEl=document.getElementById('bal-modal-amount');
   if(amtEl)amtEl.textContent=fmt(gcashBalance);
   const badge=document.getElementById('bal-override-badge');
