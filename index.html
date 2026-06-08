@@ -351,6 +351,8 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 
 /* ════════ TRIAL SYSTEM STYLES ════════ */
 .tf-main{font-weight:700;color:#1A1D23}
+.toggle-wrap{width:42px;height:24px;border-radius:12px;background:#E5E7EB;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0}
+.toggle-knob{width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
 .bm-tab{background:transparent;border:none;border-radius:7px;padding:7px 4px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;font-family:var(--font);transition:all 0.18s}
 .bm-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.08)}
 #trial-overlay{position:fixed;inset:0;background:rgba(10,10,20,0.97);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -451,6 +453,7 @@ body.modal-open{overflow:hidden;position:fixed;width:100%}
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CashHub PH">
 <meta name="description" content="GCash merchant transaction recorder with auto-scan">
+<link rel="manifest" href="manifest.json">
 <script>
 // ── PWA: icon generator + manifest injector (runs before body) ──────────
 function _makePwaIcon(sz, maskable){
@@ -512,32 +515,19 @@ function _makePwaIcon(sz, maskable){
   return c.toDataURL('image/png');
 }
 function _injectManifest(){
-  // Generate TWO separate icons:
-  // 'any'      = rounded rect, used in square/adaptive contexts
-  // 'maskable' = full-bleed, content in safe zone, used for circle/squircle home screen icons
-  // Chrome requires them SEPARATE — combined 'any maskable' causes the Chrome badge fallback
+  // Icons generated at runtime and stored for use in install banner + apple touch icon
+  // The actual manifest.json is a STATIC FILE served by the host (not a blob: URL)
+  // blob: manifests fail on Chrome 108+ when PWA is installed as a real system app
   var iAny192  = _makePwaIcon(192, false);
   var iMask192 = _makePwaIcon(192, true);
-  var iAny512  = _makePwaIcon(512, false);
-  var iMask512 = _makePwaIcon(512, true);
-  window._pwaIcon = iAny192; // used for install banner preview
+  window._pwaIcon = iAny192; // used for install banner canvas
 
-  var mf={name:'CashHub PH',short_name:'CashHub',
-    description:'GCash merchant transaction recorder',
-    start_url:'./',display:'standalone',orientation:'portrait',
-    background_color:'#FF6B00',theme_color:'#FF6B00',
-    icons:[
-      {src:iAny192,  sizes:'192x192', type:'image/png', purpose:'any'},
-      {src:iMask192, sizes:'192x192', type:'image/png', purpose:'maskable'},
-      {src:iAny512,  sizes:'512x512', type:'image/png', purpose:'any'},
-      {src:iMask512, sizes:'512x512', type:'image/png', purpose:'maskable'}
-    ]};
-  var l=document.createElement('link');l.rel='manifest';
-  l.href=URL.createObjectURL(new Blob([JSON.stringify(mf)],{type:'application/json'}));
-  document.head.appendChild(l);
-  // Apple touch icon — use the 'any' rounded rect version (iOS clips to its own shape)
+  // Apple touch icon (iOS home screen)
   var al=document.createElement('link');al.rel='apple-touch-icon';al.href=iAny192;
   document.head.appendChild(al);
+
+  // NOTE: manifest.json is linked in <head> as a static file — see <link rel="manifest">
+  // If you see install issues, ensure manifest.json is deployed alongside index.html
 }
 function _registerSW(){
   if(!('serviceWorker' in navigator))return;
@@ -1599,26 +1589,6 @@ document.addEventListener('DOMContentLoaded',function(){
     </button>
   </div>
 
-  <div class="section-label">Support &amp; Feedback</div>
-  <div class="card" style="padding:16px">
-    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
-      Have a question, found a bug, or want a feature? Reach out directly — your feedback helps improve CashHub PH.
-    </div>
-    <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;background:#1877F2;color:#fff;text-decoration:none;border-radius:12px;padding:13px 16px;font-size:14px;font-weight:700;font-family:var(--font);transition:opacity 0.15s;margin-bottom:10px">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" style="flex-shrink:0"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-      <div>
-        <div>Message on Facebook</div>
-        <div style="font-size:11px;font-weight:500;opacity:0.85">facebook.com/domz.mojar</div>
-      </div>
-    </a>
-    <a href="https://m.me/domz.mojar" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0099FF,#A033FF);color:#fff;text-decoration:none;border-radius:12px;padding:13px 16px;font-size:14px;font-weight:700;font-family:var(--font);transition:opacity 0.15s">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.2)"/><path d="M12 4C7.6 4 4 7.3 4 11.4c0 2.2 1 4.2 2.7 5.6V20l3-1.7c.8.2 1.6.3 2.3.3 4.4 0 8-3.3 8-7.4S16.4 4 12 4zm.8 10l-2-2.2-4 2.2 4.4-4.7 2.1 2.2 3.9-2.2-4.4 4.7z" fill="#fff"/></svg>
-      <div>
-        <div>Chat on Messenger</div>
-        <div style="font-size:11px;font-weight:500;opacity:0.85">Quick reply · usually fast</div>
-      </div>
-    </a>
-  </div>
 
   <div class="section-label">App Installation</div>
   <div class="card" style="padding:16px">
@@ -1866,7 +1836,7 @@ const DEFAULT_DB = {
     cinFeeType:'fixed',cinFixedFee:15,cinPctFee:1,cinTiers:null,
     coutFeeType:'fixed',coutFixedFee:20,coutPctFee:1,coutTiers:null,
     bizName:'',ownerName:'',saveImages:true,requireSig:true,showFee:true,
-    qrImageData:null,qrLabel:''
+    qrImageData:null,qrLabel:'',
   }
 };
 let DB = JSON.parse(JSON.stringify(DEFAULT_DB));
@@ -2358,7 +2328,7 @@ async function processReceiptImage(dataUrl, source){
     if(s){s.classList.add('show');}
   }else{
     document.getElementById('upload-zone').style.display='none';
-    document.getElementById('scan-spinner-gallery').classList.add('show');
+    document.getElementById('scan-spinner-gallery')?.classList.add('show');
   }
 
   try{
@@ -2400,7 +2370,7 @@ async function processReceiptImage(dataUrl, source){
     if(source==='cam'){
       const s=document.getElementById('scan-spinner-cam');if(s)s.classList.remove('show');
     }else{
-      document.getElementById('scan-spinner-gallery').classList.remove('show');
+      document.getElementById('scan-spinner-gallery')?.classList.remove('show');
       document.getElementById('upload-zone').style.display='block';
       const img=document.getElementById('preview-img');if(img){img.style.display='none';img.src='';}
     }
@@ -3029,7 +2999,7 @@ function showSignatureScreen(){
   document.getElementById('scan-step-extracted').style.display='none';
   document.getElementById('scan-step-receipt').style.display='none';
   // Ensure the scan screen itself is active so the signature step is visible
-  document.getElementById('screen-scan').classList.add('active');
+  document.getElementById('screen-scan')?.classList.add('active');
   document.getElementById('scan-step-signature').style.display='block';
 
   if(!currentTx)return;
@@ -3101,7 +3071,7 @@ function showReceiptScreen(){
   document.getElementById('scan-step-source').style.display='none';
   document.getElementById('scan-step-receipt').style.display='block';
   // Ensure scan tab is active
-  document.getElementById('screen-scan').classList.add('active');
+  document.getElementById('screen-scan')?.classList.add('active');
 
   const t=currentTx;if(!t)return;
   const isCashOut=t.type==='Cash-Out';
@@ -4279,6 +4249,33 @@ function clearAllData(){
   saveDB();updateDataSummary();renderDashboard();
   showToast('All data and balance cleared.');
 }
+// ════════════════════════════════════════
+// GOOGLE SHEET SYNC
+// ════════════════════════════════════════
+
+// The Google Apps Script source — shown in the setup guide
+function _txToSheetRow(t){
+  const d = new Date(t.date||t.createdAt||Date.now());
+  const merchant = DB.settings.bizName||DB.settings.ownerName||'—';
+  const net = (parseFloat(t.amount||0) - parseFloat(t.fee||0));
+  return [
+    d.toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}),
+    d.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}),
+    t.type||'—',
+    t.name||t.customerName||'—',
+    t.phone||t.mobileNumber||'—',
+    parseFloat(t.amount||0),
+    parseFloat(t.fee||0),
+    net,
+    t.ref||t.referenceNumber||'—',
+    t.sentVia||'GCash',
+    t.notes||'—',
+    t.id||t.txId||'—',
+    merchant
+  ];
+}
+
+// ════════════════════════════════════════
 function exportCSV(){
   const rows=[['Date','Type','Customer Name','Mobile','Amount','Fee','Ref No.','Status','Transaction ID','Signature','Merchant']];
   DB.transactions.forEach(t=>{
@@ -4356,6 +4353,43 @@ function startNewTx(type){
 }
 </script>
 
+<!-- ═══════════ TRIAL EXPIRED OVERLAY ═══════════ -->
+<div id="expired-overlay">
+  <div class="expired-box">
+    <div class="expired-icon">
+      <svg width="36" height="36" fill="none" stroke="#FF6B00" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div class="expired-title">Trial Expired</div>
+    <div class="expired-sub">Your trial has ended. Records, Reports, and Settings remain accessible.</div>
+    <div class="expired-note">
+      📋 <strong>Your data is safe.</strong> All transactions are still accessible in Records &amp; Reports.<br><br>
+      🔑 To continue recording transactions, enter a new code — or contact the developer to get one.
+    </div>
+    <!-- Contact buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <a href="https://www.facebook.com/domz.mojar" target="_blank" rel="noopener"
+        style="display:flex;align-items:center;justify-content:center;gap:7px;background:#1877F2;color:#fff;text-decoration:none;border-radius:10px;padding:11px 8px;font-size:12px;font-weight:700;font-family:inherit">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+        Facebook
+      </a>
+      <a href="https://m.me/domz.mojar" target="_blank" rel="noopener"
+        style="display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#0099FF,#A033FF);color:#fff;text-decoration:none;border-radius:10px;padding:11px 8px;font-size:12px;font-weight:700;font-family:inherit">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.2)"/><path d="M12 4C7.6 4 4 7.3 4 11.4c0 2.2 1 4.2 2.7 5.6V20l3-1.7c.8.2 1.6.3 2.3.3 4.4 0 8-3.3 8-7.4S16.4 4 12 4zm.8 10l-2-2.2-4 2.2 4.4-4.7 2.1 2.2 3.9-2.2-4.4 4.7z" fill="#fff"/></svg>
+        Messenger
+      </a>
+    </div>
+    <div style="font-size:10px;color:#C0C7D0;margin-bottom:12px">— or enter a code you already have —</div>
+    <div class="trial-input-wrap" style="margin-bottom:8px">
+      <input class="trial-input" id="renew-code-input" type="text" placeholder="Enter new code" maxlength="20"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')"
+        onkeydown="if(event.key==='Enter')renewTrial()">
+    </div>
+    <div class="trial-err" id="renew-err"></div>
+    <button class="expired-unlock-btn" onclick="renewTrial()">Activate New Code</button>
+    <button class="expired-ok-btn" onclick="document.getElementById('expired-overlay').classList.remove('show')">Continue to Records →</button>
+  </div>
+</div>
+
 <!-- ═══════════ TRIAL ACTIVATION OVERLAY ═══════════ -->
 <div id="trial-overlay">
   <div class="trial-box">
@@ -4390,33 +4424,6 @@ function startNewTx(type){
     </div>
   </div>
 </div>
-
-<!-- ═══════════ TRIAL EXPIRED OVERLAY ═══════════ -->
-<div id="expired-overlay">
-  <div class="expired-box">
-    <div class="expired-icon">
-      <svg width="36" height="36" fill="none" stroke="#FF6B00" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    </div>
-    <div class="expired-title">Trial Expired</div>
-    <div class="expired-sub">Your 5-minute trial has ended. Records, Reports, and Settings remain accessible.</div>
-    <div class="expired-note">
-      📋 <strong>Your data is safe.</strong> All transactions are still accessible in Records &amp; Reports.<br><br>
-      🔑 To continue recording transactions, enter a new trial code or contact the developer for a license.
-    </div>
-    <div class="trial-input-wrap" style="margin-bottom:8px">
-      <input class="trial-input" id="renew-code-input" type="text" placeholder="Enter new code" maxlength="20"
-        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')"
-        onkeydown="if(event.key==='Enter')renewTrial()">
-    </div>
-    <div class="trial-err" id="renew-err"></div>
-    <button class="expired-unlock-btn" onclick="renewTrial()">Activate New Code</button>
-    <button class="expired-ok-btn" onclick="document.getElementById('expired-overlay').classList.remove('show')">Continue to Records →</button>
-  </div>
-</div>
-
-<!-- download modal removed: trial now uses localStorage -->
-
-
 <script>
 // ════════════════════════════════════════
 // TRIAL SYSTEM LOGIC
