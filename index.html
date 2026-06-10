@@ -1313,45 +1313,8 @@ document.addEventListener('DOMContentLoaded',function(){
 </div>
 </div>
 
-<!-- STEP S3: Signature -->
-<div id="scan-step-signature" style="display:none">
-<div class="screen-content" style="padding-top:0">
-  <div style="display:flex;align-items:center;gap:12px;padding:14px 0">
-    <button class="btn-ghost" style="padding:0;width:auto" onclick="backToExtracted()">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-    </button>
-    <div style="font-size:18px;font-weight:700">Customer Signature</div>
-  </div>
-  <div style="background:var(--amber-light);border:1px solid rgba(245,158,11,0.3);border-radius:var(--r2);padding:12px 14px;display:flex;align-items:center;gap:10px">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    <div style="font-size:12px;color:#92400E;font-weight:500;line-height:1.5"><strong>Review Required</strong> — Please have the customer review the details below and sign to approve this transaction.</div>
-  </div>
-  <div class="sig-summary" id="sig-summary"></div>
-  <div class="section-label">Customer Signature</div>
-  <div class="sig-canvas-wrap" id="sig-canvas-wrap">
-    <canvas id="sig-canvas" height="200"></canvas>
-    <div class="sig-canvas-placeholder" id="sig-placeholder">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-      <span>Sign here with your finger</span>
-    </div>
-  </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
-    <button class="btn-ghost" style="width:auto;padding:6px 14px;background:var(--red-light);color:var(--red);border-radius:var(--r3);font-size:13px" onclick="clearSignature()">Clear Signature</button>
-    <span style="font-size:12px;color:var(--green);font-weight:600" id="sig-saved-label"></span>
-  </div>
-  <div class="sig-confirm-check">
-    <input type="checkbox" id="sig-confirm-check">
-    <label for="sig-confirm-check">I, the customer, confirm that this transaction is correct and authorize it to proceed.</label>
-  </div>
-  <button class="btn btn-primary" onclick="saveSignature()">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-    Approve &amp; Save Transaction
-  </button>
-  <button class="btn btn-outline" onclick="skipSignatureAndSave()" style="margin-top:-6px">
-    Skip Signature &amp; Save
-  </button>
-</div>
-</div>
+<!-- STEP S3: Text-only mode -->
+<div id="scan-step-signature" style="display:none"></div>
 
 <!-- STEP S4: Receipt -->
 <div id="scan-step-receipt" style="display:none">
@@ -1569,14 +1532,6 @@ document.addEventListener('DOMContentLoaded',function(){
 
   <div class="section-label">Preferences</div>
   <div class="card">
-    <div class="setting-row">
-      <div class="setting-info"><div class="s-title">Save receipt images</div><div class="s-sub">Keep scan as backup reference</div></div>
-      <label class="toggle"><input type="checkbox" id="tog-img" checked onchange="saveSetting('saveImages',this.checked)"><div class="toggle-slider"></div></label>
-    </div>
-    <div class="setting-row">
-      <div class="setting-info"><div class="s-title">Require customer signature</div><div class="s-sub">Signature approval before saving</div></div>
-      <label class="toggle"><input type="checkbox" id="tog-sig" checked onchange="saveSetting('requireSig',this.checked)"><div class="toggle-slider"></div></label>
-    </div>
     <div class="setting-row">
       <div class="setting-info"><div class="s-title">Show fee on receipt</div><div class="s-sub">Display your fee in review screen</div></div>
       <label class="toggle"><input type="checkbox" id="tog-fee" checked onchange="saveSetting('showFee',this.checked)"><div class="toggle-slider"></div></label>
@@ -1863,13 +1818,30 @@ const DEFAULT_DB = {
   settings:{
     cinFeeType:'fixed',cinFixedFee:15,cinPctFee:1,cinTiers:null,
     coutFeeType:'fixed',coutFixedFee:20,coutPctFee:1,coutTiers:null,
-    bizName:'',ownerName:'',saveImages:true,requireSig:true,showFee:true,
+    bizName:'',ownerName:'',showFee:true,
     qrImageData:null,qrLabel:'',
   }
 };
 let DB = JSON.parse(JSON.stringify(DEFAULT_DB));
 try{const r=localStorage.getItem('cashhub_ph_v3');if(r){const p=JSON.parse(r);DB={...DEFAULT_DB,...p,transactions:Array.isArray(p.transactions)?p.transactions:[],settings:{...DEFAULT_DB.settings,...(p.settings||{})},deposits:p.deposits||[],balanceOverride:p.balanceOverride!==undefined?p.balanceOverride:null,balanceOverrideTime:p.balanceOverrideTime||null}; }}catch(e){}
-function saveDB(){try{localStorage.setItem('cashhub_ph_v3',JSON.stringify(DB));}catch(e){showToast('Storage error: '+e.message);}}
+function normalizeTextOnlyDB(){
+  if(!Array.isArray(DB.transactions))DB.transactions=[];
+  DB.transactions=DB.transactions.map(t=>{
+    if(!t||typeof t!=='object')return t;
+    const {imageData,signature,...clean}=t;
+    return clean;
+  });
+  if(DB.settings&&typeof DB.settings==='object'){
+    delete DB.settings.saveImages;
+    delete DB.settings.requireSig;
+  }
+}
+function saveDB(){
+  try{
+    normalizeTextOnlyDB();
+    localStorage.setItem('cashhub_ph_v3',JSON.stringify(DB));
+  }catch(e){showToast('Storage error: '+e.message);}
+}
 function saveSetting(k,v){DB.settings[k]=v;saveDB();}
 
 // ════════════════════════════════════════
@@ -1907,9 +1879,8 @@ function showToast(msg,dur=2800){const t=document.getElementById('toast');t.text
 // INIT
 // ════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',()=>{
-
-
-
+  normalizeTextOnlyDB();
+  saveDB();
   updateGreeting();
   loadSettings();
   setInterval(updateGreeting,60000);
@@ -2310,44 +2281,7 @@ async function runTesseractOCR(dataUrl, source){
 }
 
 // ── SAVE RECEIPT IMAGE TO DOWNLOADS ──
-function saveReceiptImage(dataUrl){
-  try{
-    // Generate filename with timestamp
-    const now = new Date();
-    const ts = now.getFullYear()
-      + String(now.getMonth()+1).padStart(2,'0')
-      + String(now.getDate()).padStart(2,'0')
-      + '_' + String(now.getHours()).padStart(2,'0')
-      + String(now.getMinutes()).padStart(2,'0')
-      + String(now.getSeconds()).padStart(2,'0');
-    const filename = 'receipt_' + ts + '.jpg';
-
-    // Convert to jpeg if needed (smaller file size)
-    const img = new Image();
-    img.onload = function(){
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(img,0,0);
-      const jpeg = canvas.toDataURL('image/jpeg', 0.85);
-
-      const a = document.createElement('a');
-      a.href = jpeg;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      showToast('Receipt photo saved to Downloads 📥');
-    };
-    img.onerror = function(){ showToast('Could not save receipt photo.'); };
-    img.src = dataUrl;
-  }catch(e){
-    console.error('saveReceiptImage error:',e);
-  }
-}
+function saveReceiptImage(){return;}
 
 async function processReceiptImage(dataUrl, source){
   // Clean up any "re-use scan" bar from a previous back-navigation
@@ -2939,13 +2873,12 @@ function confirmAs(type){
     amount:txAmount,gcashAmt,cashAmt,gcashSent:isCashOut?gcashAmt:cashAmt,
     ref:d.referenceNumber||'',rxDate:d.date||'',rxTime:d.time||'',
     note:d.notes||'',fee,sentVia:d.sentVia||'GCash',
-    status:'pending',date:now.toISOString(),
-    imageData:DB.settings.saveImages?currentImageData:null,
-    signature:null
+    status:'pending',date:now.toISOString()
   };
   _scanOrigin='scan';
 
-  showSignatureScreen(); // Signature always required
+  saveTransaction();
+  showReceiptScreen();
 }
 
 // ════════════════════════════════════════
@@ -3023,57 +2956,18 @@ function clearSignature(){
 }
 
 function showSignatureScreen(){
-  // Hide ALL possible previous screens
-  document.getElementById('scan-step-source').style.display='none';
-  document.getElementById('scan-step-extracted').style.display='none';
-  document.getElementById('scan-step-receipt').style.display='none';
-  // Ensure the scan screen itself is active so the signature step is visible
-  document.getElementById('screen-scan')?.classList.add('active');
-  document.getElementById('scan-step-signature').style.display='block';
-
-  if(!currentTx)return;
-  const isCashOut=currentTx.type==='Cash-Out';
-  const rows=[
-    {k:'Transaction Type',v:currentTx.type},
-    {k:'Customer Name',v:currentTx.name||'—'},
-    {k:'Mobile Number',v:currentTx.phone||'—'},
-    {k:'Amount',v:fmt(currentTx.amount)},
-    ...(DB.settings.showFee?[{k:'Processing Fee',v:fmt(currentTx.fee)}]:[]),
-    {k:'Reference No.',v:currentTx.ref||'—'},
-    ...(currentTx.rxDate&&currentTx.rxTime?[{k:'Receipt Date/Time',v:currentTx.rxDate+' '+formatTime12(currentTx.rxTime)}]:[]),
-  ];
-  document.getElementById('sig-summary').innerHTML=rows.map(r=>
-    `<div class="sig-summary-row"><span class="sig-key">${escHtml(r.k)}</span><span class="sig-val">${escHtml(r.v)}</span></div>`
-  ).join('');
-
-  clearSignature();
-  const cb=document.getElementById('sig-confirm-check');if(cb)cb.checked=false;
-
-  // Resize canvas after DOM reflow
-  setTimeout(resizeSigCanvas,120);
+  saveTransaction();
+  showReceiptScreen();
 }
 
 function saveSignature(){
-  if(trialIsExpired()&&!trialIsDev()){showTrialExpiredModal();return;}
-  if(!sigHasData){
-    showToast('Please have the customer sign before approving.');return;
-  }
-  if(!document.getElementById('sig-confirm-check').checked){
-    showToast('Please check the confirmation box before approving.');return;
-  }
-  const canvas=document.getElementById('sig-canvas');
-  const sigData=canvas.toDataURL('image/png');
-  if(currentTx)currentTx.signature=sigData;
   saveTransaction();
-  // Auto-download receipt photo on approve — only for camera scans
-  // (gallery/upload means the merchant already has the file; downloading would duplicate it)
-  if(currentImageData && currentImageSource === 'cam') saveReceiptImage(currentImageData);
   showReceiptScreen();
 }
 
 function skipSignatureAndSave(){
-  // Signature is now required — this button is disabled
-  showToast('Customer signature is required to approve.');
+  saveTransaction();
+  showReceiptScreen();
 }
 
 // ════════════════════════════════════════
@@ -3139,15 +3033,7 @@ function showReceiptScreen(){
         <span class="receipt-val" style="${r.green?'color:var(--green);font-weight:700':''}${r.mono?';font-family:var(--mono);font-size:12px':''}">${escHtml(r.v)}</span>
       </div>`).join('')}
     </div>
-    ${t.signature?`<div class="receipt-sig-row">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Customer Signature</div>
-      <img src="${t.signature}" style="max-height:90px;border-radius:8px;border:1px solid var(--border);display:block">
-      <div style="font-size:10px;color:var(--green);margin-top:4px;font-weight:600">✓ Approved by customer</div>
-    </div>`:'<div style="padding:10px 20px 4px;font-size:11px;color:var(--text3);font-style:italic">No signature collected</div>'}
-    ${t.imageData?`<div style="padding:0 20px 14px">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Receipt Image</div>
-      <img src="${t.imageData}" style="width:100%;border-radius:8px;border:1px solid var(--border);max-height:180px;object-fit:cover">
-    </div>`:''}
+    <div style="padding:10px 20px 14px;font-size:11px;color:var(--text3);font-style:italic">Text-only record · no signature or receipt image stored</div>
   `;
 }
 
@@ -3662,13 +3548,12 @@ function submitManualEntry(){
     id:Date.now(),txId:genTxId(),type:currentType,feeMode:manualFeeMode,
     name:name||'Customer',phone,sender:'',amount:txAmount,gcashAmt,cashAmt,
     gcashSent:isCashOut?gcashAmt:cashAmt,ref,rxDate,rxTime,note,fee,
-    sentVia:'GCash',status:'pending',date:new Date().toISOString(),
-    imageData:null,signature:null
+    sentVia:'GCash',status:'pending',date:new Date().toISOString()
   };
   _scanOrigin='manual';
   currentFeeMode=manualFeeMode;
 
-  // Ensure scan screen is active for the signature step
+  // Ensure scan screen is active for the receipt step
   ['dashboard','scan','records','reports','settings'].forEach(s=>{
     const sc=document.getElementById('screen-'+s);
     const tb=document.getElementById('tab-'+s);
@@ -3676,7 +3561,8 @@ function submitManualEntry(){
     if(tb)tb.classList.toggle('active',s==='scan');
   });
 
-  showSignatureScreen(); // Signature always required
+  saveTransaction();
+  showReceiptScreen();
 }
 
 // ════════════════════════════════════════
@@ -3780,8 +3666,7 @@ function showTxModal(id){
          ['Note',t.note||'—'],
        ].map(([k,v])=>`<div class="receipt-row" style="padding:10px 14px"><span class="receipt-key">${escHtml(k)}</span><span class="receipt-val" style="font-size:12px;font-family:var(--mono)">${escHtml(v)}</span></div>`).join('')}
     </div>
-    ${t.imageData?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Receipt Image</div><img src="${t.imageData}" style="width:100%;border-radius:10px;border:1px solid var(--border)"></div>`:''}
-    ${t.signature?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Customer Signature</div><img src="${t.signature}" style="max-height:80px;border-radius:8px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--green);margin-top:4px;font-weight:600">✓ Approved</div></div>`:'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;font-style:italic">No signature collected</div>'}
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;font-style:italic">Text-only record · no signature or receipt image stored</div>
   `;
   document.getElementById('modal-delete-btn').onclick=()=>deleteTx(id);
   document.getElementById('modal-edit-btn').onclick=()=>showEditTxModal(id);
@@ -4318,9 +4203,9 @@ function _txToSheetRow(t){
 
 // ════════════════════════════════════════
 function exportCSV(){
-  const rows=[['Date','Type','Customer Name','Mobile','Amount','Fee','Ref No.','Status','Transaction ID','Signature','Merchant']];
+  const rows=[['Date','Type','Customer Name','Mobile','Amount','Fee','Ref No.','Status','Transaction ID','Merchant']];
   DB.transactions.forEach(t=>{
-    rows.push([t.date,t.type,t.name||'',t.phone||'',t.amount||0,t.fee||0,t.ref||'',t.status||'',t.txId||'',t.signature?'Yes':'No',DB.settings.bizName||DB.settings.ownerName||'']);
+    rows.push([t.date,t.type,t.name||'',t.phone||'',t.amount||0,t.fee||0,t.ref||'',t.status||'',t.txId||'',DB.settings.bizName||DB.settings.ownerName||'']);
   });
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
@@ -4351,8 +4236,6 @@ function loadSettings(){
   document.getElementById('cin-fee-pct-val').textContent=cinPct+'%';
   document.getElementById('cout-fee-fixed-val').textContent='₱'+coutFixed;
   document.getElementById('cout-fee-pct-val').textContent=coutPct+'%';
-  document.getElementById('tog-img').checked=s.saveImages!==false;
-  document.getElementById('tog-sig').checked=s.requireSig!==false;
   document.getElementById('tog-fee').checked=s.showFee!==false;
   if(s.cinFeeType&&s.cinFeeType!=='fixed')setFeeType(s.cinFeeType,'cashin');
   if(s.coutFeeType&&s.coutFeeType!=='fixed')setFeeType(s.coutFeeType,'cashout');
@@ -4443,7 +4326,7 @@ function startNewTx(type){
       <ul class="trial-features">
         <li><span class="tf-main">📸 Scan receipt → auto-fill in seconds</span></li>
         <li><span class="tf-main">⚡ No more writing — GCash details auto-extracted</span></li>
-        <li>Customer signature &amp; receipt photo saved</li>
+        <li>Text-only transaction records to save device storage</li>
         <li>Daily, weekly &amp; monthly profit reports</li>
         <li>100% stored on your device — no cloud needed</li>
       </ul>
@@ -5096,5 +4979,6 @@ function renderPwaSettingsCard(){
   }
 }
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
